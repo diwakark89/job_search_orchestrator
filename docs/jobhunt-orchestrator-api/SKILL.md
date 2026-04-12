@@ -236,7 +236,7 @@ curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/j
 `jobs-raw`
 
 ```bash
-curl -X POST http://localhost:8000/db/jobs-raw -H "Content-Type: application/json" -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs","pipeline_stage":"SCRAPED"}]}'
+curl -X POST http://localhost:8000/db/jobs-raw -H "Content-Type: application/json" -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs"}]}'
 ```
 
 `jobs-enriched`

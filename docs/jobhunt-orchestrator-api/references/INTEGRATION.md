@@ -257,7 +257,7 @@ curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/j
 ### `jobs-raw`
 
 ```bash
-curl -X POST http://localhost:8000/db/jobs-raw -H "Content-Type: application/json" -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs","pipeline_stage":"SCRAPED"}]}'
+curl -X POST http://localhost:8000/db/jobs-raw -H "Content-Type: application/json" -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs"}]}'
 ```
 
 ### `jobs-enriched`
@@ -384,6 +384,6 @@ result = run_pipeline(repo=repo, copilot_client=copilot, rows=[], limit=50, dry_
 
 - Stage 1 validates each `jobs_raw` row independently
 - valid Stage 1 rows still write even if some rows are invalid
-- the enricher reads `jobs_raw` rows where `pipeline_stage = SCRAPED` and `is_deleted = false`
-- successful enrichment patches `jobs_raw.pipeline_stage` to `ENRICHED`
+- the enricher reads `jobs_raw` rows where `job_status = SCRAPED` and `is_deleted = false`
+- successful enrichment patches `jobs_raw.job_status` to `ENRICHED`
 - dry-run pipeline skips Stage 3 metrics writes
