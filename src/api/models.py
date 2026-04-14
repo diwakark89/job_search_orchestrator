@@ -87,7 +87,7 @@ class PipelineRunRequest(BaseModel):
     dry_run: bool = False
 
 
-class PipelineStageRawRequest(BaseModel):
+class PipelineStageIngestRequest(BaseModel):
     rows: list[dict[str, Any]]
 
 
@@ -96,13 +96,9 @@ class PipelineStageEnrichRequest(BaseModel):
     dry_run: bool = False
 
 
-class PipelineStageMetricsRequest(BaseModel):
-    scraped_count: int = Field(default=0, ge=0)
-
-
-class PipelineStageFinalizeRequest(BaseModel):
-    limit: int = Field(default=50, ge=1)
-    dry_run: bool = False
+class MetricsResponse(BaseModel):
+    status_counts: dict[str, int]
+    total: int
 
 
 def operation_result_to_response(result: OperationResult) -> OperationResultResponse:

@@ -37,65 +37,59 @@ def _ok(table: str, operation: str, data=None) -> OperationResult:
     return OperationResult(success=True, status_code=200, table=table, operation=operation, row_count=0, data=data)
 
 
-def test_enrich_jobs_dry_run_filters_existing_and_counts() -> None:
+def test_enrich_jobs_dry_run_counts() -> None:
     repo = MagicMock()
     repo.select_rows.return_value = _ok(
-        "jobs_raw",
+        "jobs_final",
         "select",
         [
-            {"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False},
-            {"id": "id-2", "description": "", "job_status": "SCRAPED", "is_deleted": False},
-            {"id": "id-3", "description": "bad description", "job_status": "SCRAPED", "is_deleted": False},
+            {"job_id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False},
+            {"job_id": "id-2", "description": "", "job_status": "SCRAPED", "is_deleted": False},
+            {"job_id": "id-3", "description": "bad description", "job_status": "SCRAPED", "is_deleted": False},
         ],
     )
-    repo.client.select.return_value = _ok("jobs_enriched", "select", [{"job_id": "id-3"}])
 
     summary = enrich_jobs(repo=repo, copilot_client=_FakeCopilotClient(), limit=10, dry_run=True)
-    assert summary.processed.count == 2
-    assert summary.processed.ids == ["id-1", "id-2"]
+    assert summary.processed.count == 3
     assert summary.enriched.count == 1
     assert summary.enriched.ids == ["id-1"]
     assert summary.skipped.count == 1
     assert summary.skipped.ids == ["id-2"]
-    assert summary.failed.count == 0
-    assert summary.failed.ids == []
+    assert summary.failed.count == 1
+    assert summary.failed.ids == ["id-3"]
 
 
-def test_enrich_jobs_write_upserts_and_marks_stage() -> None:
+def test_enrich_jobs_write_patches_jobs_final() -> None:
     repo = MagicMock()
     repo.select_rows.return_value = _ok(
-        "jobs_raw",
+        "jobs_final",
         "select",
-        [{"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
+        [{"job_id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
     )
-    repo.client.select.side_effect = [
-        _ok("jobs_enriched", "select", []),
-        _ok("jobs_enriched", "select", [{"job_id": "id-1"}]),
-    ]
-    repo.upsert_rows.return_value = OperationResult(True, 204, "jobs_enriched", "upsert", 1)
-    repo.patch_rows.return_value = OperationResult(True, 204, "jobs_raw", "patch", 1)
+    repo.patch_rows.return_value = OperationResult(True, 204, "jobs_final", "patch", 1)
 
     summary = enrich_jobs(repo=repo, copilot_client=_FakeCopilotClient(), limit=10, dry_run=False)
     assert summary.enriched.count == 1
     assert summary.enriched.ids == ["id-1"]
     assert summary.failed.count == 0
-    assert summary.failed.ids == []
-    repo.upsert_rows.assert_called_once()
     repo.patch_rows.assert_called_once()
+    call_kwargs = repo.patch_rows.call_args.kwargs
+    assert call_kwargs["table"] == "jobs_final"
+    assert call_kwargs["payload"]["job_status"] == "ENRICHED"
+    assert call_kwargs["filters"] == {"job_id": "id-1"}
 
 
-def test_enrich_jobs_raises_when_upsert_not_persisted() -> None:
+def test_enrich_jobs_patch_failure_records_error() -> None:
     repo = MagicMock()
     repo.select_rows.return_value = _ok(
-        "jobs_raw",
+        "jobs_final",
         "select",
-        [{"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
+        [{"job_id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
     )
-    repo.client.select.side_effect = [
-        _ok("jobs_enriched", "select", []),
-        _ok("jobs_enriched", "select", []),
-    ]
-    repo.upsert_rows.return_value = OperationResult(True, 204, "jobs_enriched", "upsert", 1)
+    repo.patch_rows.return_value = OperationResult(False, 500, "jobs_final", "patch", 0, error="DB error")
 
-    with pytest.raises(RuntimeError, match="rows were not found in jobs_enriched"):
-        enrich_jobs(repo=repo, copilot_client=_FakeCopilotClient(), limit=10, dry_run=False)
+    summary = enrich_jobs(repo=repo, copilot_client=_FakeCopilotClient(), limit=10, dry_run=False)
+    assert summary.enriched.count == 0
+    assert summary.failed.count == 1
+    assert "id-1" in summary.failed.ids
+    assert any("failed to patch" in e for e in summary.errors)

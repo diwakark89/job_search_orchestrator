@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from common.validators import validate_jobs_enriched_rows
-
 from .client_copilot import CopilotClient, CopilotExtractionResult
 from .constants import ALLOWED_EXPERIENCE_LEVELS, ALLOWED_REMOTE_TYPES, CANONICAL_TECH_STACK
 
@@ -55,7 +53,7 @@ def _normalize_bool_or_none(value: Any) -> bool | None:
 
 
 def build_enriched_row(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    row = {
+    return {
         "job_id": job_id,
         "tech_stack": _normalize_tech_stack(payload.get("tech_stack")),
         "experience_level": _normalize_enum(payload.get("experience_level"), ALLOWED_EXPERIENCE_LEVELS),
@@ -63,17 +61,16 @@ def build_enriched_row(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         "visa_sponsorship": _normalize_bool_or_none(payload.get("visa_sponsorship")),
         "english_friendly": _normalize_bool_or_none(payload.get("english_friendly")),
     }
-    return validate_jobs_enriched_rows([row])[0]
 
 
 def enrich_job_row(copilot_client: CopilotClient, job_row: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
-    job_id = str(job_row.get("id", "")).strip()
+    job_id = str(job_row.get("job_id", "")).strip()
     description = str(job_row.get("description", "")).strip()
 
     if not job_id:
-        return None, "jobs_raw row missing id"
+        return None, "jobs_final row missing job_id"
     if not description:
-        return None, "jobs_raw row missing description"
+        return None, "jobs_final row missing description"
 
     result: CopilotExtractionResult = copilot_client.extract_from_description(description)
     if not result.success or result.data is None:

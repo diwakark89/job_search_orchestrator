@@ -16,23 +16,17 @@ from common.client import PostgrestClient
 from common.config import load_config
 from common.constants import DEFAULT_CONFLICT_KEYS
 from repository.supabase import SupabaseRepository
-from service.tables import soft_delete_jobs_final, soft_delete_jobs_raw
+from service.tables import soft_delete_jobs_final
 
 router = APIRouter(prefix="/db", tags=["tables"])
 
 TABLE_CONFIG: dict[str, tuple[str, str]] = {
     "jobs-final": ("jobs_final", "job_id"),
-    "jobs-raw": ("jobs_raw", "id"),
-    "jobs-enriched": ("jobs_enriched", "job_id"),
     "shared-links": ("shared_links", "id"),
-    "job-decisions": ("job_decisions", "id"),
-    "job-approvals": ("job_approvals", "decision_id"),
-    "job-metrics": ("job_metrics", "id"),
 }
 
 _SOFT_DELETE_TABLES: dict[str, str] = {
     "jobs_final": "job_id",
-    "jobs_raw": "id",
 }
 
 _RESERVED_PARAMS: set[str] = {"columns", "limit", "offset", "order_by", "ascending"}
@@ -127,10 +121,6 @@ def get_record(table: str, record_id: str) -> SelectResponse:
 @router.post("/{table}", response_model=OperationResultResponse)
 def create_rows(table: str, payload: TableRowsRequest) -> OperationResultResponse:
     db_table, _pk = _resolve_table(table)
-
-    if db_table == "job_metrics":
-        raise HTTPException(status_code=405, detail="job_metrics is a patch-only table. Use PATCH instead.")
-
     repo = _repo()
 
     try:
@@ -191,17 +181,14 @@ def soft_delete_record(table: str, record_id: str, payload: SoftDeleteRequest | 
     if db_table not in _SOFT_DELETE_TABLES:
         raise HTTPException(
             status_code=400,
-            detail=f"Soft-delete is not supported for '{table}'. Only jobs-final and jobs-raw support it.",
+            detail=f"Soft-delete is not supported for '{table}'. Only jobs-final supports it.",
         )
 
     hard_delete = payload.hard_delete if payload else False
     repo = _repo()
 
     try:
-        if db_table == "jobs_final":
-            result = soft_delete_jobs_final(repo=repo, job_id=record_id, hard_delete=hard_delete)
-        else:
-            result = soft_delete_jobs_raw(repo=repo, row_id=record_id, hard_delete=hard_delete)
+        result = soft_delete_jobs_final(repo=repo, job_id=record_id, hard_delete=hard_delete)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

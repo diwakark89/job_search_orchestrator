@@ -5,12 +5,7 @@ from typing import Any
 from common.client import OperationResult, PostgrestClient
 from common.constants import DEFAULT_CONFLICT_KEYS, VALID_TABLES
 from common.validators import (
-    validate_job_approvals_rows,
-    validate_job_decisions_rows,
-    validate_job_metrics_patch,
-    validate_jobs_enriched_rows,
     validate_jobs_final_rows,
-    validate_jobs_raw_rows,
     validate_shared_links_rows,
 )
 
@@ -30,16 +25,6 @@ class SupabaseRepository:
             return validate_jobs_final_rows(rows)
         if table == "shared_links":
             return validate_shared_links_rows(rows)
-        if table == "jobs_raw":
-            return validate_jobs_raw_rows(rows)
-        if table == "jobs_enriched":
-            return validate_jobs_enriched_rows(rows)
-        if table == "job_decisions":
-            return validate_job_decisions_rows(rows)
-        if table == "job_approvals":
-            return validate_job_approvals_rows(rows)
-        if table == "job_metrics":
-            raise ValueError("job_metrics does not support insert/upsert rows. Use patch.")
         raise ValueError(f"No validator configured for table '{table}'.")
 
     def select_rows(
@@ -93,10 +78,6 @@ class SupabaseRepository:
         operator: str = "eq",
     ) -> OperationResult:
         self._ensure_table_supported(table)
-
-        if table == "job_metrics":
-            payload = validate_job_metrics_patch(payload)
-
         return self.client.patch(table=table, payload=payload, filters=filters, operator=operator)
 
     def delete_rows(

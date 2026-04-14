@@ -53,7 +53,7 @@ def test_enrich_job_row_success() -> None:
     )
     row, error = enrich_job_row(
         copilot_client=client,
-        job_row={"id": "aaaaaaaa-0000-0000-0000-000000000002", "description": "some jd"},
+        job_row={"job_id": "aaaaaaaa-0000-0000-0000-000000000002", "description": "some jd"},
     )
     assert error is None
     assert row is not None
@@ -64,17 +64,17 @@ def test_enrich_job_row_missing_description() -> None:
     client = _FakeCopilotClient(payload={})
     row, error = enrich_job_row(
         copilot_client=client,
-        job_row={"id": "aaaaaaaa-0000-0000-0000-000000000003", "description": ""},
+        job_row={"job_id": "aaaaaaaa-0000-0000-0000-000000000003", "description": ""},
     )
     assert row is None
-    assert error == "jobs_raw row missing description"
+    assert error == "jobs_final row missing description"
 
 
 def test_enrich_job_row_model_failure() -> None:
     client = _FakeCopilotClient(payload={}, success=False, error="rate limit")
     row, error = enrich_job_row(
         copilot_client=client,
-        job_row={"id": "aaaaaaaa-0000-0000-0000-000000000004", "description": "jd"},
+        job_row={"job_id": "aaaaaaaa-0000-0000-0000-000000000004", "description": "jd"},
     )
     assert row is None
     assert error == "rate limit"

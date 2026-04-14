@@ -14,16 +14,9 @@ from common.config import SupabaseConfig
 from repository.supabase import SupabaseRepository
 from service.tables import (
     delete_jobs_final_by_job_id,
-    delete_jobs_raw_by_id,
-    insert_job_decisions,
     insert_shared_links,
-    patch_job_metrics,
     soft_delete_jobs_final,
-    soft_delete_jobs_raw,
-    upsert_job_approvals,
-    upsert_jobs_enriched,
     upsert_jobs_final,
-    upsert_jobs_raw,
 )
 
 
@@ -72,13 +65,6 @@ class TestRepositoryUpsertRows:
         assert kwargs["on_conflict"] == "job_id"
         assert result.success is True
 
-    def test_jobs_raw_defaults_conflict_to_job_url(self):
-        client = _mock_client(_ok(table="jobs_raw"))
-        repo = SupabaseRepository(client)
-        rows = [{"company_name": "Acme", "role_title": "Dev", "job_url": "https://example.com/1"}]
-        repo.upsert_rows("jobs_raw", rows)
-        client.upsert.assert_called_once()
-
     def test_unsupported_table_raises(self):
         repo = SupabaseRepository(_mock_client(_ok()))
         with pytest.raises(ValueError, match="Unsupported table"):
@@ -98,12 +84,6 @@ class TestRepositoryUpsertRows:
         with pytest.raises(Exception):
             repo.upsert_rows("jobs_final", rows)
         client.upsert.assert_not_called()
-
-    def test_job_metrics_raises(self):
-        client = _mock_client(_ok())
-        repo = SupabaseRepository(client)
-        with pytest.raises(ValueError, match="job_metrics"):
-            repo.upsert_rows("job_metrics", [{"total_scraped": 5}])
 
 
 class TestRepositoryInsertRows:
@@ -131,19 +111,6 @@ class TestRepositoryPatchRows:
         result = repo.patch_rows("jobs_final", {"job_status": "Applied"}, {"job_id": "abc"})
         client.patch.assert_called_once()
         assert result.success is True
-
-    def test_job_metrics_payload_validated(self):
-        client = _mock_client(_ok(table="job_metrics", operation="patch"))
-        repo = SupabaseRepository(client)
-        repo.patch_rows("job_metrics", {"total_scraped": 100}, {"id": 1})
-        client.patch.assert_called_once()
-
-    def test_job_metrics_negative_counter_raises(self):
-        client = _mock_client(_ok())
-        repo = SupabaseRepository(client)
-        with pytest.raises(Exception):
-            repo.patch_rows("job_metrics", {"total_scraped": -5}, {"id": 1})
-        client.patch.assert_not_called()
 
 
 class TestRepositoryDeleteRows:
@@ -183,57 +150,12 @@ class TestTableWrappers:
         )
         assert result.success is True
 
-    def test_upsert_jobs_raw(self):
-        repo = _mock_repo(_ok(table="jobs_raw"))
-        upsert_jobs_raw(repo, [{"company_name": "X", "role_title": "Y", "job_url": "https://x.com/1"}])
-        repo.upsert_rows.assert_called_once_with(
-            table="jobs_raw",
-            rows=[{"company_name": "X", "role_title": "Y", "job_url": "https://x.com/1"}],
-            on_conflict="job_url",
-        )
-
-    def test_upsert_jobs_enriched(self):
-        repo = _mock_repo(_ok(table="jobs_enriched"))
-        upsert_jobs_enriched(repo, [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}])
-        repo.upsert_rows.assert_called_once_with(
-            table="jobs_enriched",
-            rows=[{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}],
-            on_conflict="job_id",
-        )
-
-    def test_insert_job_decisions_valid(self):
-        repo = _mock_repo(_ok(table="job_decisions", operation="insert"))
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "decision": "AUTO_APPROVE"}]
-        insert_job_decisions(repo, rows)
-        repo.insert_rows.assert_called_once_with(table="job_decisions", rows=rows)
-
-    def test_upsert_job_approvals_valid(self):
-        repo = _mock_repo(_ok(table="job_approvals"))
-        rows = [{"job_id": "a", "decision_id": "b", "user_action": "APPROVED"}]
-        upsert_job_approvals(repo, rows)
-        repo.upsert_rows.assert_called_once_with(table="job_approvals", rows=rows, on_conflict="decision_id")
-
-    def test_patch_job_metrics(self):
-        repo = _mock_repo(_ok(table="job_metrics", operation="patch"))
-        result = patch_job_metrics(repo, {"total_scraped": 200})
-        repo.patch_rows.assert_called_once_with(table="job_metrics", payload={"total_scraped": 200}, filters={"id": 1})
-        assert result.success is True
-
     def test_delete_jobs_final_by_job_id(self):
         repo = _mock_repo(_ok(operation="delete"))
         delete_jobs_final_by_job_id(repo, "aaaaaaaa-0000-0000-0000-000000000001")
         repo.delete_rows.assert_called_once_with(
             table="jobs_final",
             filters={"job_id": "aaaaaaaa-0000-0000-0000-000000000001"},
-            treat_404_as_success=True,
-        )
-
-    def test_delete_jobs_raw_by_id(self):
-        repo = _mock_repo(_ok(table="jobs_raw", operation="delete"))
-        delete_jobs_raw_by_id(repo, "aaaaaaaa-0000-0000-0000-000000000001")
-        repo.delete_rows.assert_called_once_with(
-            table="jobs_raw",
-            filters={"id": "aaaaaaaa-0000-0000-0000-000000000001"},
             treat_404_as_success=True,
         )
 
@@ -258,16 +180,3 @@ class TestSoftDelete:
         repo.delete_rows = MagicMock()
         soft_delete_jobs_final(repo, "abc", hard_delete=True)
         repo.delete_rows.assert_not_called()
-
-    def test_soft_delete_raw_sets_is_deleted(self):
-        repo = _mock_repo(_ok(table="jobs_raw", operation="patch"))
-        soft_delete_jobs_raw(repo, "aaaaaaaa-0000-0000-0000-000000000001", hard_delete=False)
-        repo.patch_rows.assert_called_once()
-        repo.delete_rows.assert_not_called()
-
-    def test_soft_delete_raw_with_hard_delete(self):
-        repo = _mock_repo(_ok(table="jobs_raw", operation="patch"))
-        repo.delete_rows = MagicMock(return_value=_ok(table="jobs_raw", operation="delete"))
-        soft_delete_jobs_raw(repo, "aaaaaaaa-0000-0000-0000-000000000001", hard_delete=True)
-        repo.patch_rows.assert_called_once()
-        repo.delete_rows.assert_called_once()

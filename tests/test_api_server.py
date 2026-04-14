@@ -35,7 +35,6 @@ def test_tables_endpoint_lists_supported_tables() -> None:
     payload = response.json()
     assert "jobs_final" in payload["tables"]
     assert payload["default_conflict_keys"]["jobs_final"] == "job_id"
-    assert payload["default_conflict_keys"]["jobs_raw"] == "job_url"
     assert payload["default_conflict_keys"]["shared_links"] == "url"
 
 
@@ -119,32 +118,6 @@ def test_db_create_rows_success(monkeypatch) -> None:
     payload = response.json()
     assert payload["success"] is True
     assert payload["operation"] == "upsert"
-
-
-def test_job_metrics_create_is_rejected_as_patch_only() -> None:
-    client = _make_client()
-    response = client.post("/db/job-metrics", json={"rows": [{"id": 1, "total_scraped": 1}]})
-
-    assert response.status_code == 405
-    assert "patch-only" in response.json()["detail"]
-
-
-def test_job_metrics_patch_uses_record_id_filter(monkeypatch) -> None:
-    import api.routes.tables as tables_module
-
-    repo = MagicMock()
-    repo.patch_rows.return_value = OperationResult(True, 200, "job_metrics", "patch", 1)
-    monkeypatch.setattr(tables_module, "_repo", MagicMock(return_value=repo))
-
-    client = _make_client()
-    response = client.patch("/db/job-metrics/1", json={"payload": {"total_scraped": 42}})
-
-    assert response.status_code == 200
-    repo.patch_rows.assert_called_once_with(
-        table="job_metrics",
-        payload={"total_scraped": 42},
-        filters={"id": "1"},
-    )
 
 
 def test_db_patch_failure_maps_http_error(monkeypatch) -> None:

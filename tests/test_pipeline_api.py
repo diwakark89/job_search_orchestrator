@@ -33,9 +33,8 @@ def test_pipeline_run_success(monkeypatch) -> None:
 
     fake_result = PipelineResult(
         stages=[
-            StageResult(stage="jobs_raw", success=True, processed=1, errors=[]),
-            StageResult(stage="jobs_enriched", success=True, processed=1, errors=[]),
-            StageResult(stage="job_metrics", success=True, processed=1, errors=[]),
+            StageResult(stage="ingest", success=True, processed=1, errors=[]),
+            StageResult(stage="enrich", success=True, processed=1, errors=[]),
         ],
         success=True,
         total_processed=1,
@@ -55,7 +54,7 @@ def test_pipeline_run_success(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
-    assert len(payload["stages"]) == 3
+    assert len(payload["stages"]) == 2
     assert payload["stages"][0]["processed"]["count"] == 1
     assert payload["stages"][0]["stage_error"] is None
     assert payload["stages"][0]["skipped"]["count"] == 0
@@ -70,7 +69,7 @@ def test_pipeline_run_stage_failure_includes_failed_row_ids(monkeypatch) -> None
     fake_result = PipelineResult(
         stages=[
             StageResult(
-                stage="jobs_raw",
+                stage="ingest",
                 success=False,
                 processed=0,
                 errors=["row[0]: company_name missing", "row[1]: role_title missing"],
@@ -105,12 +104,12 @@ def test_pipeline_run_stage_failure_extracts_job_and_batch_ids(monkeypatch) -> N
     fake_result = PipelineResult(
         stages=[
             StageResult(
-                stage="jobs_enriched",
+                stage="enrich",
                 success=False,
                 processed=0,
                 errors=[
                     "job_id=11df3e1c-6f77-4439-aeb2-d86ddec82974: failed to set job_status=ENRICHED",
-                    "Upsert returned success, but rows were not found in jobs_enriched for ids: id-1, id-2",
+                    "Upsert returned success, but rows were not found in jobs_final for ids: id-1, id-2",
                 ],
             ),
         ],
@@ -170,21 +169,21 @@ def test_pipeline_run_runtime_error(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# POST /pipeline/stage/raw
+# POST /pipeline/stage/ingest
 # ---------------------------------------------------------------------------
 
 
-def test_stage_raw_endpoint_success(monkeypatch) -> None:
+def test_stage_ingest_endpoint_success(monkeypatch) -> None:
     import api.routes.pipeline as pipeline_route
 
-    fake_result = StageResult(stage="jobs_raw", success=True, processed=2, errors=[])
+    fake_result = StageResult(stage="ingest", success=True, processed=2, errors=[])
     monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
     monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
     monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
-    monkeypatch.setattr(pipeline_route, "run_stage_raw", MagicMock(return_value=fake_result))
+    monkeypatch.setattr(pipeline_route, "run_stage_ingest", MagicMock(return_value=fake_result))
 
     client = _make_client()
-    response = client.post("/pipeline/stage/raw", json={"rows": [_VALID_ROW, _VALID_ROW]})
+    response = client.post("/pipeline/stage/ingest", json={"rows": [_VALID_ROW, _VALID_ROW]})
 
     assert response.status_code == 200
     payload = response.json()
@@ -228,57 +227,26 @@ def test_stage_enriched_endpoint_success(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# POST /pipeline/stage/metrics
+# GET /pipeline/metrics
 # ---------------------------------------------------------------------------
 
 
-def test_stage_metrics_endpoint_success(monkeypatch) -> None:
+def test_metrics_endpoint_success(monkeypatch) -> None:
     import api.routes.pipeline as pipeline_route
 
-    fake_result = StageResult(stage="job_metrics", success=True, processed=1, errors=[])
     monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
     monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
     monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
-    monkeypatch.setattr(pipeline_route, "run_stage_metrics", MagicMock(return_value=fake_result))
+    monkeypatch.setattr(
+        pipeline_route,
+        "get_metrics",
+        MagicMock(return_value={"status_counts": {"SCRAPED": 5, "ENRICHED": 3}, "total": 8}),
+    )
 
     client = _make_client()
-    response = client.post("/pipeline/stage/metrics", json={"scraped_count": 5})
+    response = client.get("/pipeline/metrics")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["processed"]["count"] == 1
-    assert payload["failed"]["count"] == 0
-
-
-# ---------------------------------------------------------------------------
-# POST /pipeline/stage/finalize
-# ---------------------------------------------------------------------------
-
-
-def test_stage_finalize_endpoint_success(monkeypatch) -> None:
-    import api.routes.pipeline as pipeline_route
-
-    fake_result = type(
-        "FinalizeSummary",
-        (),
-        {
-            "processed": type("Bucket", (), {"count": 2, "ids": ["id-1", "id-2"]})(),
-            "skipped": type("Bucket", (), {"count": 0, "ids": []})(),
-            "failed": type("Bucket", (), {"count": 0, "ids": []})(),
-            "errors": [],
-        },
-    )()
-    monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
-    monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
-    monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
-    monkeypatch.setattr(pipeline_route, "run_stage_finalize_detailed", MagicMock(return_value=fake_result))
-
-    client = _make_client()
-    response = client.post("/pipeline/stage/finalize", json={"limit": 25, "dry_run": True})
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["processed"]["count"] == 2
-    assert payload["processed"]["ids"] == ["id-1", "id-2"]
-    assert payload["skipped"]["count"] == 0
-    assert payload["failed"]["count"] == 0
+    assert payload["status_counts"]["SCRAPED"] == 5
+    assert payload["total"] == 8

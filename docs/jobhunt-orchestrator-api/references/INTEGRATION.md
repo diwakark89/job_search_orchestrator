@@ -39,23 +39,13 @@ Use these surfaces instead:
 
 - `jobs_final`
 - `shared_links`
-- `jobs_raw`
-- `jobs_enriched`
-- `job_decisions`
-- `job_approvals`
-- `job_metrics`
 
 ## Table Slug Mapping
 
 | URL slug | Database table | Primary key |
 | --- | --- | --- |
 | `jobs-final` | `jobs_final` | `job_id` |
-| `jobs-raw` | `jobs_raw` | `id` |
-| `jobs-enriched` | `jobs_enriched` | `job_id` |
 | `shared-links` | `shared_links` | `id` |
-| `job-decisions` | `job_decisions` | `id` |
-| `job-approvals` | `job_approvals` | `decision_id` |
-| `job-metrics` | `job_metrics` | `id` |
 
 ## Setup
 
@@ -103,7 +93,7 @@ Table endpoints:
 - `POST /db/{table}` insert or upsert rows depending on table defaults
 - `PATCH /db/{table}/{record_id}` patch one row by primary key
 - `DELETE /db/{table}/{record_id}` hard delete one row
-- `DELETE /db/{table}/{record_id}/soft` soft delete for `jobs-final` and `jobs-raw`
+- `DELETE /db/{table}/{record_id}/soft` soft delete for `jobs-final`
 
 ### Supported request and response
 
@@ -125,10 +115,9 @@ Success response:
 
 ```json
 {
-  "tables": ["jobs_final", "jobs_raw", "shared_links"],
+  "tables": ["jobs_final", "shared_links"],
   "default_conflict_keys": {
     "jobs_final": "job_id",
-    "jobs_raw": "job_url",
     "shared_links": "url"
   }
 }
@@ -144,7 +133,7 @@ Success response:
     {
       "job_id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
-      "job_status": "Applied"
+      "job_status": "APPLIED"
     }
   ],
   "count": 1,
@@ -156,7 +145,7 @@ Common error:
 
 ```json
 {
-  "detail": "Unknown table 'not-a-table'. Available: ['job-approvals', 'job-decisions', 'job-metrics', 'jobs-enriched', 'jobs-final', 'jobs-raw', 'shared-links']"
+  "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
 }
 ```
 
@@ -173,14 +162,6 @@ Success response:
   "row_count": 1,
   "data": null,
   "error": null
-}
-```
-
-Common error for unsupported create on `job-metrics`:
-
-```json
-{
-  "detail": "job_metrics is a patch-only table. Use PATCH instead."
 }
 ```
 
@@ -215,34 +196,43 @@ Success response:
 {
   "stages": [
     {
-      "stage": "raw",
+      "stage": "ingest",
+      "success": true,
+      "processed": 1,
+      "errors": []
+    },
+    {
+      "stage": "enriched",
       "success": true,
       "processed": 1,
       "errors": []
     }
   ],
   "success": true,
-  "total_processed": 3,
+  "total_processed": 2,
   "total_enriched": 1,
   "total_failed": 0
 }
 ```
 
-`POST /pipeline/stage/metrics`
+`GET /pipeline/metrics`
 
-Request body:
+Success response:
 
 ```json
 {
-  "scraped_count": 10
+  "status_counts": {
+    "SAVED": 10,
+    "SCRAPED": 5,
+    "ENRICHED": 3
+  },
+  "total": 18
 }
 ```
 
 Important HTTP constraints:
 
-- `job_metrics` is patch-only
-- `POST /db/job-metrics` returns `405`
-- soft delete is supported only for `jobs-final` and `jobs-raw`
+- soft delete is supported only for `jobs-final`
 
 ## Per-table Add and Write Examples
 
@@ -251,19 +241,7 @@ The examples below show the supported write path for every table.
 ### `jobs-final`
 
 ```bash
-curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"Saved","job_url":"https://example.com/jobs/123"}]}'
-```
-
-### `jobs-raw`
-
-```bash
-curl -X POST http://localhost:8000/db/jobs-raw -H "Content-Type: application/json" -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs"}]}'
-```
-
-### `jobs-enriched`
-
-```bash
-curl -X POST http://localhost:8000/db/jobs-enriched -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","experience_level":"Senior","remote_type":"Remote","english_friendly":true,"tech_stack":["Python","FastAPI"]}]}'
+curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
 
 ### `shared-links`
@@ -272,33 +250,13 @@ curl -X POST http://localhost:8000/db/jobs-enriched -H "Content-Type: applicatio
 curl -X POST http://localhost:8000/db/shared-links -H "Content-Type: application/json" -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
 ```
 
-### `job-decisions`
-
-```bash
-curl -X POST http://localhost:8000/db/job-decisions -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","decision":"REVIEW","reason":"Needs human review"}]}'
-```
-
-### `job-approvals`
-
-```bash
-curl -X POST http://localhost:8000/db/job-approvals -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","decision_id":"11111111-1111-1111-1111-111111111111","user_action":"APPROVED"}]}'
-```
-
-### `job-metrics`
-
-`job_metrics` is patch-only, so the supported write path is:
-
-```bash
-curl -X PATCH http://localhost:8000/db/job-metrics/1 -H "Content-Type: application/json" -d '{"payload":{"total_scraped":1200,"total_enriched":800,"updated_at":"2026-04-11T12:00:00.000Z"}}'
-```
-
 Orchestration endpoints:
 
 - `POST /enricher/run`
 - `POST /pipeline/run`
-- `POST /pipeline/stage/raw`
+- `POST /pipeline/stage/ingest`
 - `POST /pipeline/stage/enriched`
-- `POST /pipeline/stage/metrics`
+- `GET /pipeline/metrics`
 
 ## CLI
 
@@ -312,7 +270,6 @@ Examples:
 
 ```bash
 uv run python main.py db tables
-uv run python main.py db patch-metrics --payload '{"total_scraped":1200}'
 uv run python main.py enricher enrich --limit 20 --dry-run
 uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
 ```
@@ -331,7 +288,7 @@ from repository.supabase import SupabaseRepository
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
 result = repo.select_rows(
     table="jobs_final",
-    filters={"job_status": "Applied"},
+    filters={"job_status": "APPLIED"},
     order_by="created_at",
     ascending=False,
 )
@@ -343,11 +300,12 @@ Table helper usage:
 from common.client import PostgrestClient
 from common.config import load_config
 from repository.supabase import SupabaseRepository
-from service.tables import upsert_jobs_final, patch_job_metrics
+from service.tables import upsert_jobs_final, get_metrics
 
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
 upsert_jobs_final(repo, [{"job_id": "550e8400-e29b-41d4-a716-446655440000"}])
-patch_job_metrics(repo, {"total_scraped": 1200})
+metrics = get_metrics(repo)
+print(metrics)  # {"status_counts": {"SAVED": 10, ...}, "total": 10}
 ```
 
 Enricher usage:
@@ -382,8 +340,8 @@ result = run_pipeline(repo=repo, copilot_client=copilot, rows=[], limit=50, dry_
 
 ## Behavioral Notes
 
-- Stage 1 validates each `jobs_raw` row independently
-- valid Stage 1 rows still write even if some rows are invalid
-- the enricher reads `jobs_raw` rows where `job_status = SCRAPED` and `is_deleted = false`
-- successful enrichment patches `jobs_raw.job_status` to `ENRICHED`
-- dry-run pipeline skips Stage 3 metrics writes
+- The ingest stage validates each row independently
+- Valid ingest rows still write even if some rows are invalid
+- The enricher reads `jobs_final` rows where `job_status = SCRAPED` and `is_deleted = false`
+- Successful enrichment patches `jobs_final.job_status` to `ENRICHED`
+- Metrics are computed dynamically via `SELECT job_status, COUNT(*) FROM jobs_final GROUP BY job_status`

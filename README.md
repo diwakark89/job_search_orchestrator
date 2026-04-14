@@ -10,16 +10,11 @@ The pipeline manages these Supabase tables:
 
 - `jobs_final`
 - `shared_links`
-- `jobs_raw`
-- `jobs_enriched`
-- `job_decisions`
-- `job_approvals`
-- `job_metrics`
 
 It also includes:
 
-- an enricher that reads `jobs_raw.description` and writes structured metadata to `jobs_enriched`
-- a 3-stage pipeline runner: `jobs_raw -> jobs_enriched -> job_metrics`
+- an enricher that reads `jobs_final` rows where `job_status=SCRAPED` and patches enrichment data plus `job_status=ENRICHED` directly on `jobs_final`
+- a 2-stage pipeline runner: `ingest → enrich`
 
 ## Integration Guide
 
@@ -120,12 +115,7 @@ System endpoints:
 Table endpoints use the consolidated `/db/{table}` contract. Supported table slugs are:
 
 - `jobs-final`
-- `jobs-raw`
-- `jobs-enriched`
 - `shared-links`
-- `job-decisions`
-- `job-approvals`
-- `job-metrics`
 
 Available table operations:
 
@@ -134,13 +124,12 @@ Available table operations:
 - `POST /db/{table}` create rows using insert or upsert depending on table defaults
 - `PATCH /db/{table}/{record_id}` update one record by primary key
 - `DELETE /db/{table}/{record_id}` hard delete one record
-- `DELETE /db/{table}/{record_id}/soft` soft delete for `jobs-final` and `jobs-raw`
+- `DELETE /db/{table}/{record_id}/soft` soft delete for `jobs-final`
 
 Important HTTP constraints:
 
 - legacy HTTP routes are not supported
-- `job-metrics` is patch-only over HTTP; `POST /db/job-metrics` returns `405`
-- list filtering uses plain query parameters, for example `?job_status=Applied&company_name=Acme`
+- list filtering uses plain query parameters, for example `?job_status=APPLIED&company_name=Acme`
 - list ordering uses `order_by` and `ascending`
 
 ### Supported request and response
@@ -167,10 +156,10 @@ Success response:
 
 ```json
 {
-  "tables": ["jobs_final", "jobs_raw", "shared_links"],
+  "tables": ["jobs_final", "shared_links"],
   "default_conflict_keys": {
     "jobs_final": "job_id",
-    "jobs_raw": "id"
+    "shared_links": "url"
   }
 }
 ```
@@ -185,7 +174,7 @@ Success response:
     {
       "job_id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
-      "job_status": "Applied"
+      "job_status": "APPLIED"
     }
   ],
   "count": 1,
@@ -197,7 +186,8 @@ Common error:
 
 ```json
 {
-  "detail": "Unknown table 'not-a-table'. Available: ['job-approvals', 'job-decisions', 'job-metrics', 'jobs-enriched', 'jobs-final', 'jobs-raw', 'shared-links']"
+  "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
+}
 }
 ```
 
@@ -214,14 +204,6 @@ Success response:
   "row_count": 1,
   "data": null,
   "error": null
-}
-```
-
-Common error for unsupported create on `job-metrics`:
-
-```json
-{
-  "detail": "job_metrics is a patch-only table. Use PATCH instead."
 }
 ```
 
@@ -273,37 +255,26 @@ Success response:
 {
   "stages": [
     {
-      "stage": "raw",
+      "stage": "ingest",
+      "success": true,
+      "processed": 1,
+      "errors": []
+    },
+    {
+      "stage": "enriched",
       "success": true,
       "processed": 1,
       "errors": []
     }
   ],
   "success": true,
-  "total_processed": 3,
+  "total_processed": 2,
   "total_enriched": 1,
   "total_failed": 0
 }
 ```
 
-`POST /pipeline/stage/metrics`
-
-Request body:
-
-```json
-{
-  "scraped_count": 10,
-  "enriched_count": 8
-}
-```
-
-Common error:
-
-```json
-{
-  "detail": "scraped_count must be greater than or equal to 0"
-}
-```
+`POST /pipeline/stage/ingest`
 
 ### Add data to every table
 
@@ -312,23 +283,7 @@ Common error:
 ```bash
 curl -X POST http://localhost:8000/db/jobs-final \
   -H "Content-Type: application/json" \
-  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"Saved","job_url":"https://example.com/jobs/123"}]}'
-```
-
-`jobs-raw`
-
-```bash
-curl -X POST http://localhost:8000/db/jobs-raw \
-  -H "Content-Type: application/json" \
-  -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs"}]}'
-```
-
-`jobs-enriched`
-
-```bash
-curl -X POST http://localhost:8000/db/jobs-enriched \
-  -H "Content-Type: application/json" \
-  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","experience_level":"Senior","remote_type":"Remote","english_friendly":true,"tech_stack":["Python","FastAPI"]}]}'
+  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
 
 `shared-links`
@@ -339,32 +294,6 @@ curl -X POST http://localhost:8000/db/shared-links \
   -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
 ```
 
-`job-decisions`
-
-```bash
-curl -X POST http://localhost:8000/db/job-decisions \
-  -H "Content-Type: application/json" \
-  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","decision":"REVIEW","reason":"Needs human review"}]}'
-```
-
-`job-approvals`
-
-```bash
-curl -X POST http://localhost:8000/db/job-approvals \
-  -H "Content-Type: application/json" \
-  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","decision_id":"11111111-1111-1111-1111-111111111111","user_action":"APPROVED"}]}'
-```
-
-`job-metrics`
-
-`job_metrics` is patch-only, so the supported write path is to update the singleton row:
-
-```bash
-curl -X PATCH http://localhost:8000/db/job-metrics/1 \
-  -H "Content-Type: application/json" \
-  -d '{"payload":{"total_scraped":1200,"total_enriched":800,"updated_at":"2026-04-11T12:00:00.000Z"}}'
-```
-
 ## CLI
 
 The CLI uses the `db`, `enricher`, and `pipeline` groups.
@@ -372,10 +301,8 @@ The CLI uses the `db`, `enricher`, and `pipeline` groups.
 Examples:
 
 ```bash
-uv run python main.py db patch-metrics --payload '{"total_scraped":1200}'
 uv run python main.py db soft-delete --table jobs_final --record-id 550e8400-e29b-41d4-a716-446655440000
-uv run python main.py db patch --table jobs_final --filter-column job_id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"Applied"}'
-uv run python main.py db delete --table jobs_raw --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --treat-404-as-success
+uv run python main.py db patch --table jobs_final --filter-column job_id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
 uv run python main.py enricher enrich --limit 50
 uv run python main.py pipeline stage-enriched --limit 20 --dry-run
 ```

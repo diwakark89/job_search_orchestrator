@@ -6,7 +6,7 @@ description: >-
   routes, use the CLI groups under `main.py db`, `main.py enricher`, or
   `main.py pipeline`, or write Python code against the `common`, `repository`, and
   `service` layers. Covers supported table slugs, request and response shapes,
-  representative success and error responses, patch-only `job_metrics` behavior,
+  representative success and error responses,
   service and repository imports, and the current CLI and HTTP contract.
 ---
 
@@ -75,15 +75,10 @@ Table endpoints:
 
 Supported table slugs:
 
-| Slug            | Table           | Primary key   |
-| --------------- | --------------- | ------------- |
-| `jobs-final`    | `jobs_final`    | `job_id`      |
-| `jobs-raw`      | `jobs_raw`      | `id`          |
-| `jobs-enriched` | `jobs_enriched` | `job_id`      |
-| `shared-links`  | `shared_links`  | `id`          |
-| `job-decisions` | `job_decisions` | `id`          |
-| `job-approvals` | `job_approvals` | `decision_id` |
-| `job-metrics`   | `job_metrics`   | `id`          |
+| Slug           | Table          | Primary key |
+| -------------- | -------------- | ----------- |
+| `jobs-final`   | `jobs_final`   | `job_id`    |
+| `shared-links` | `shared_links` | `id`        |
 
 Query behavior for `GET /db/{table}`:
 
@@ -112,10 +107,9 @@ Success response:
 
 ```json
 {
-  "tables": ["jobs_final", "jobs_raw", "shared_links"],
+  "tables": ["jobs_final", "shared_links"],
   "default_conflict_keys": {
     "jobs_final": "job_id",
-    "jobs_raw": "job_url",
     "shared_links": "url"
   }
 }
@@ -131,7 +125,7 @@ Success response:
     {
       "job_id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
-      "job_status": "Applied"
+      "job_status": "APPLIED"
     }
   ],
   "count": 1,
@@ -143,7 +137,7 @@ Common error:
 
 ```json
 {
-  "detail": "Unknown table 'not-a-table'. Available: ['job-approvals', 'job-decisions', 'job-metrics', 'jobs-enriched', 'jobs-final', 'jobs-raw', 'shared-links']"
+  "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
 }
 ```
 
@@ -160,14 +154,6 @@ Success response:
   "row_count": 1,
   "data": null,
   "error": null
-}
-```
-
-Common error for unsupported create on `job-metrics`:
-
-```json
-{
-  "detail": "job_metrics is a patch-only table. Use PATCH instead."
 }
 ```
 
@@ -202,26 +188,37 @@ Success response:
 {
   "stages": [
     {
-      "stage": "raw",
+      "stage": "ingest",
+      "success": true,
+      "processed": 1,
+      "errors": []
+    },
+    {
+      "stage": "enriched",
       "success": true,
       "processed": 1,
       "errors": []
     }
   ],
   "success": true,
-  "total_processed": 3,
+  "total_processed": 2,
   "total_enriched": 1,
   "total_failed": 0
 }
 ```
 
-`POST /pipeline/stage/metrics`
+`GET /pipeline/metrics`
 
-Request body:
+Success response:
 
 ```json
 {
-  "scraped_count": 10
+  "status_counts": {
+    "SAVED": 10,
+    "SCRAPED": 5,
+    "ENRICHED": 3
+  },
+  "total": 18
 }
 ```
 
@@ -230,19 +227,7 @@ Request body:
 `jobs-final`
 
 ```bash
-curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"Saved","job_url":"https://example.com/jobs/123"}]}'
-```
-
-`jobs-raw`
-
-```bash
-curl -X POST http://localhost:8000/db/jobs-raw -H "Content-Type: application/json" -d '{"rows":[{"company_name":"Acme Corp","role_title":"Backend Engineer","job_url":"https://example.com/jobs/1","description":"Build APIs"}]}'
-```
-
-`jobs-enriched`
-
-```bash
-curl -X POST http://localhost:8000/db/jobs-enriched -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","experience_level":"Senior","remote_type":"Remote","english_friendly":true,"tech_stack":["Python","FastAPI"]}]}'
+curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
 
 `shared-links`
@@ -251,30 +236,9 @@ curl -X POST http://localhost:8000/db/jobs-enriched -H "Content-Type: applicatio
 curl -X POST http://localhost:8000/db/shared-links -H "Content-Type: application/json" -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
 ```
 
-`job-decisions`
-
-```bash
-curl -X POST http://localhost:8000/db/job-decisions -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","decision":"REVIEW","reason":"Needs human review"}]}'
-```
-
-`job-approvals`
-
-```bash
-curl -X POST http://localhost:8000/db/job-approvals -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","decision_id":"11111111-1111-1111-1111-111111111111","user_action":"APPROVED"}]}'
-```
-
-`job-metrics`
-
-`job_metrics` is patch-only, so the supported write path is:
-
-```bash
-curl -X PATCH http://localhost:8000/db/job-metrics/1 -H "Content-Type: application/json" -d '{"payload":{"total_scraped":1200,"total_enriched":800,"updated_at":"2026-04-11T12:00:00.000Z"}}'
-```
-
 Constraints:
 
-- `job_metrics` is patch-only over HTTP
-- soft delete is supported only for `jobs-final` and `jobs-raw`
+- soft delete is supported only for `jobs-final`
 - full request and response coverage lives in `docs/INTEGRATION.md`
 
 ## CLI
@@ -284,7 +248,6 @@ CLI groups remain:
 ```bash
 python main.py db tables
 python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
-python main.py db patch-metrics --payload '{"total_scraped":1200}'
 python main.py enricher enrich --limit 20 --dry-run
 python main.py pipeline run payloads/jobs_raw.json --limit 20
 ```
@@ -292,9 +255,8 @@ python main.py pipeline run payloads/jobs_raw.json --limit 20
 Extra CLI examples:
 
 ```bash
-python main.py db patch --table jobs_final --filter-column job_id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"Applied"}'
-python main.py db delete --table jobs_raw --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --treat-404-as-success
-python main.py pipeline stage-metrics --scraped 10
+python main.py db patch --table jobs_final --filter-column job_id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
+python main.py pipeline stage-enriched --limit 20 --dry-run
 ```
 
 ## Python API
@@ -309,7 +271,7 @@ from common.config import load_config
 from repository.supabase import SupabaseRepository
 
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-result = repo.select_rows(table="jobs_final", filters={"job_status": "Applied"})
+result = repo.select_rows(table="jobs_final", filters={"job_status": "APPLIED"})
 ```
 
 Service helper example:

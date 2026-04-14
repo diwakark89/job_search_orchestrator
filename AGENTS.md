@@ -181,19 +181,15 @@ docs/              → Integration guide and API skill reference
 | Slug (HTTP) | Table Name (DB) | Conflict Key | Notes |
 |-------------|-----------------|--------------|-------|
 | `jobs-final` | `jobs_final` | `job_id` | Supports soft delete |
-| `jobs-raw` | `jobs_raw` | `job_url` | Supports soft delete |
-| `jobs-enriched` | `jobs_enriched` | `job_id` | Written by enricher |
 | `shared-links` | `shared_links` | `url` | |
-| `job-decisions` | `job_decisions` | — | |
-| `job-approvals` | `job_approvals` | `decision_id` | |
-| `job-metrics` | `job_metrics` | — | Patch-only; POST returns 405 |
 
 ## Additional Notes
 
 - The HTTP API uses hyphenated slugs (`jobs-final`) while the database uses underscored names (`jobs_final`). Route handlers translate between the two.
-- `job-metrics` is patch-only over HTTP; `POST /db/job-metrics` returns 405.
-- List filtering uses plain query parameters: `GET /db/jobs-final?job_status=Applied&company_name=Acme`.
-- The enricher pipeline reads `jobs_raw.description` and writes structured metadata to `jobs_enriched`.
-- The full pipeline runs three stages sequentially: `jobs_raw → jobs_enriched → job_metrics`.
+- List filtering uses plain query parameters: `GET /db/jobs-final?job_status=APPLIED&company_name=Acme`.
+- The enricher reads `jobs_final` rows where `job_status=SCRAPED` and `is_deleted=false`, enriches them, and patches `job_status=ENRICHED` directly on `jobs_final`.
+- The full pipeline runs two stages sequentially: `ingest → enrich`.
+- Soft delete is supported only for `jobs-final`.
+- Metrics are computed dynamically via `SELECT job_status, COUNT(*) FROM jobs_final GROUP BY job_status` — no separate metrics table.
 - Service functions accept `dry_run=True` to preview operations without persisting.
 - The integration contract is documented in `docs/INTEGRATION.md`.

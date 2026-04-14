@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from common.client import OperationResult
 from repository.supabase import SupabaseRepository
@@ -14,38 +15,10 @@ def insert_shared_links(repo: SupabaseRepository, rows: list[dict]) -> Operation
     return repo.upsert_rows(table="shared_links", rows=rows, on_conflict="url")
 
 
-def upsert_jobs_raw(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
-    return repo.upsert_rows(table="jobs_raw", rows=rows, on_conflict="job_url")
-
-
-def upsert_jobs_enriched(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
-    return repo.upsert_rows(table="jobs_enriched", rows=rows, on_conflict="job_id")
-
-
-def insert_job_decisions(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
-    return repo.insert_rows(table="job_decisions", rows=rows)
-
-
-def upsert_job_approvals(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
-    return repo.upsert_rows(table="job_approvals", rows=rows, on_conflict="decision_id")
-
-
-def patch_job_metrics(repo: SupabaseRepository, payload: dict) -> OperationResult:
-    return repo.patch_rows(table="job_metrics", payload=payload, filters={"id": 1})
-
-
 def delete_jobs_final_by_job_id(repo: SupabaseRepository, job_id: str) -> OperationResult:
     return repo.delete_rows(
         table="jobs_final",
         filters={"job_id": job_id},
-        treat_404_as_success=True,
-    )
-
-
-def delete_jobs_raw_by_id(repo: SupabaseRepository, row_id: str) -> OperationResult:
-    return repo.delete_rows(
-        table="jobs_raw",
-        filters={"id": row_id},
         treat_404_as_success=True,
     )
 
@@ -64,15 +37,18 @@ def soft_delete_jobs_final(repo: SupabaseRepository, job_id: str, hard_delete: b
     return delete_jobs_final_by_job_id(repo, job_id)
 
 
-def soft_delete_jobs_raw(repo: SupabaseRepository, row_id: str, hard_delete: bool = False) -> OperationResult:
-    now_iso = datetime.now(tz=UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    patch_result = repo.patch_rows(
-        table="jobs_raw",
-        payload={"is_deleted": True, "modified_at": now_iso},
-        filters={"id": row_id},
+def get_metrics(repo: SupabaseRepository) -> dict[str, Any]:
+    result = repo.select_rows(
+        table="jobs_final",
+        columns="job_status",
+        filters={"is_deleted": False},
     )
+    if not result.success or not isinstance(result.data, list):
+        raise RuntimeError(result.error or "Failed to fetch jobs_final rows for metrics.")
 
-    if not patch_result.success or not hard_delete:
-        return patch_result
+    status_counts: dict[str, int] = {}
+    for row in result.data:
+        status = row.get("job_status") or "Unknown"
+        status_counts[status] = status_counts.get(status, 0) + 1
 
-    return delete_jobs_raw_by_id(repo, row_id)
+    return {"status_counts": status_counts, "total": len(result.data)}

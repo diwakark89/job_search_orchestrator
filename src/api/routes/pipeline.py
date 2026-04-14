@@ -7,12 +7,11 @@ from fastapi import APIRouter, HTTPException
 from api.models import (
     EnrichmentCountResponse,
     EnrichmentSummaryResponse,
+    MetricsResponse,
     PipelineResultResponse,
     PipelineRunRequest,
     PipelineStageEnrichRequest,
-    PipelineStageFinalizeRequest,
-    PipelineStageMetricsRequest,
-    PipelineStageRawRequest,
+    PipelineStageIngestRequest,
     StageResultResponse,
 )
 from common.client import PostgrestClient
@@ -23,10 +22,9 @@ from repository.supabase import SupabaseRepository
 from service.pipeline import (
     run_pipeline,
     run_stage_enriched_detailed,
-    run_stage_finalize_detailed,
-    run_stage_metrics,
-    run_stage_raw,
+    run_stage_ingest,
 )
+from service.tables import get_metrics
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
@@ -107,11 +105,11 @@ def pipeline_run(payload: PipelineRunRequest) -> PipelineResultResponse:
     )
 
 
-@router.post("/stage/raw", response_model=EnrichmentSummaryResponse)
-def pipeline_stage_raw(payload: PipelineStageRawRequest) -> EnrichmentSummaryResponse:
+@router.post("/stage/ingest", response_model=EnrichmentSummaryResponse)
+def pipeline_stage_ingest(payload: PipelineStageIngestRequest) -> EnrichmentSummaryResponse:
     try:
         repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-        result = run_stage_raw(repo=repo, rows=payload.rows)
+        result = run_stage_ingest(repo=repo, rows=payload.rows)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -144,39 +142,17 @@ def pipeline_stage_enriched(payload: PipelineStageEnrichRequest) -> EnrichmentSu
     )
 
 
-@router.post("/stage/metrics", response_model=EnrichmentSummaryResponse)
-def pipeline_stage_metrics(payload: PipelineStageMetricsRequest) -> EnrichmentSummaryResponse:
+@router.get("/metrics", response_model=MetricsResponse)
+def pipeline_metrics() -> MetricsResponse:
     try:
         repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-        result = run_stage_metrics(
-            repo=repo,
-            scraped_count=payload.scraped_count,
-        )
+        metrics = get_metrics(repo=repo)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return _stage_to_bucket_response(result)
-
-
-@router.post("/stage/finalize", response_model=EnrichmentSummaryResponse)
-def pipeline_stage_finalize(payload: PipelineStageFinalizeRequest) -> EnrichmentSummaryResponse:
-    try:
-        repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-        result = run_stage_finalize_detailed(
-            repo=repo,
-            limit=payload.limit,
-            dry_run=payload.dry_run,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return EnrichmentSummaryResponse(
-        processed=EnrichmentCountResponse(count=result.processed.count, ids=result.processed.ids),
-        skipped=EnrichmentCountResponse(count=result.skipped.count, ids=result.skipped.ids),
-        failed=EnrichmentCountResponse(count=result.failed.count, ids=result.failed.ids),
-        errors=result.errors,
+    return MetricsResponse(
+        status_counts=metrics["status_counts"],
+        total=metrics["total"],
     )

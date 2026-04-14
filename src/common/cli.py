@@ -14,10 +14,7 @@ from .constants import DEFAULT_CONFLICT_KEYS, VALID_TABLES
 from repository.supabase import SupabaseRepository
 from service.tables import (
     delete_jobs_final_by_job_id,
-    delete_jobs_raw_by_id,
-    patch_job_metrics,
     soft_delete_jobs_final,
-    soft_delete_jobs_raw,
 )
 
 app = typer.Typer(help="Supabase table operations for Automated Job Hunt.")
@@ -140,18 +137,16 @@ def cmd_delete(
 
 @app.command("soft-delete")
 def cmd_soft_delete(
-    table: str = typer.Option(..., "--table", help="Only jobs_final or jobs_raw."),
-    record_id: str = typer.Option(..., "--record-id", help="job_id for jobs_final, id for jobs_raw."),
+    table: str = typer.Option(..., "--table", help="Only jobs_final."),
+    record_id: str = typer.Option(..., "--record-id", help="job_id for jobs_final."),
     hard_delete: bool = typer.Option(False, "--hard-delete", help="Perform hard delete after soft delete."),
 ) -> None:
     repo = _repo()
 
     if table == "jobs_final":
         result = soft_delete_jobs_final(repo=repo, job_id=record_id, hard_delete=hard_delete)
-    elif table == "jobs_raw":
-        result = soft_delete_jobs_raw(repo=repo, row_id=record_id, hard_delete=hard_delete)
     else:
-        raise typer.BadParameter("soft-delete only supports jobs_final or jobs_raw.")
+        raise typer.BadParameter("soft-delete only supports jobs_final.")
 
     _print_result(result)
 
@@ -159,22 +154,6 @@ def cmd_soft_delete(
 @app.command("delete-jobs-final")
 def cmd_delete_jobs_final(job_id: str = typer.Option(..., "--job-id")) -> None:
     result = delete_jobs_final_by_job_id(repo=_repo(), job_id=job_id)
-    _print_result(result)
-
-
-@app.command("delete-jobs-raw")
-def cmd_delete_jobs_raw(row_id: str = typer.Option(..., "--row-id")) -> None:
-    result = delete_jobs_raw_by_id(repo=_repo(), row_id=row_id)
-    _print_result(result)
-
-
-@app.command("patch-metrics")
-def cmd_patch_metrics(
-    payload: str | None = typer.Option(None, "--payload", help="Inline JSON object payload."),
-    payload_file: Path | None = typer.Option(None, "--payload-file", help="Path to JSON object payload."),
-) -> None:
-    patch_payload = _parse_json_payload(payload, payload_file, expect_list=False)
-    result = patch_job_metrics(repo=_repo(), payload=patch_payload)
     _print_result(result)
 
 
