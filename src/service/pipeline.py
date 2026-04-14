@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -9,10 +10,42 @@ from repository.supabase import SupabaseRepository
 
 from pipeline.models import PipelineResult, StageResult
 
-from .enricher import enrich_jobs
-from .tables import patch_job_metrics, upsert_jobs_raw
+from .enricher import EnrichmentSummary, enrich_jobs
+from .tables import patch_job_metrics, upsert_jobs_final, upsert_jobs_raw
 
 _RAW_TIMESTAMP_FIELDS = ("created_at", "modified_at")
+
+
+@dataclass
+class BucketCount:
+    count: int
+    ids: list[str]
+
+
+@dataclass
+class FinalizeSummary:
+    processed: BucketCount
+    enriched: BucketCount
+    skipped: BucketCount
+    failed: BucketCount
+    errors: list[str]
+
+
+def _fetch_persisted_final_ids(repo: SupabaseRepository, job_ids: list[str]) -> set[str]:
+    if not job_ids:
+        return set()
+
+    in_filter = "(" + ",".join(job_ids) + ")"
+    result = repo.client.select(
+        table="jobs_final",
+        columns="job_id",
+        filters={"job_id": in_filter},
+        operator="in",
+    )
+    if not result.success or not isinstance(result.data, list):
+        raise RuntimeError(result.error or "Failed to verify persisted jobs_final rows.")
+
+    return {str(row.get("job_id")) for row in result.data if row.get("job_id")}
 
 
 def run_stage_raw(repo: SupabaseRepository, rows: list[dict[str, Any]]) -> StageResult:
@@ -59,8 +92,22 @@ def run_stage_enriched(
     return StageResult(
         stage="jobs_enriched",
         success=True,
-        processed=summary.enriched,
+        processed=summary.enriched.count,
         errors=summary.errors,
+    )
+
+
+def run_stage_enriched_detailed(
+    repo: SupabaseRepository,
+    copilot_client: CopilotClient,
+    limit: int,
+    dry_run: bool = False,
+) -> EnrichmentSummary:
+    return enrich_jobs(
+        repo=repo,
+        copilot_client=copilot_client,
+        limit=limit,
+        dry_run=dry_run,
     )
 
 
@@ -83,6 +130,164 @@ def run_stage_metrics(
         )
 
     return StageResult(stage="job_metrics", success=True, processed=1, errors=[])
+
+
+def run_stage_finalize_detailed(
+    repo: SupabaseRepository,
+    limit: int = 50,
+    dry_run: bool = False,
+) -> FinalizeSummary:
+    selection = repo.select_rows(
+        table="jobs_raw",
+        columns="id,company_name,role_title,job_url,description,language,job_status,is_deleted",
+        filters={"job_status": "ENRICHED", "is_deleted": False},
+        limit=limit,
+        order_by="created_at",
+        ascending=True,
+    )
+    if not selection.success or not isinstance(selection.data, list):
+        return FinalizeSummary(
+            processed=BucketCount(count=0, ids=[]),
+            enriched=BucketCount(count=0, ids=[]),
+            skipped=BucketCount(count=0, ids=[]),
+            failed=BucketCount(count=0, ids=[]),
+            errors=[selection.error or "Failed to fetch ENRICHED rows from jobs_raw"],
+        )
+
+    final_rows: list[dict[str, Any]] = []
+    processed_ids: list[str] = []
+    skipped_ids: list[str] = []
+    failed_ids: list[str] = []
+    enriched_ids: list[str] = []
+    errors: list[str] = []
+
+    for row in selection.data:
+        row_id = row.get("id")
+        if not row_id:
+            errors.append("jobs_raw row missing id; cannot map to jobs_final.job_id")
+            skipped_ids.append("missing-id")
+            continue
+
+        row_id_text = str(row_id)
+        processed_ids.append(row_id_text)
+
+        final_rows.append(
+            {
+                "job_id": row_id_text,
+                "company_name": row.get("company_name"),
+                "role_title": row.get("role_title"),
+                "job_url": row.get("job_url"),
+                "description": row.get("description"),
+                "language": row.get("language") or "English",
+                # jobs_final only supports display/legacy status values such as Saved/Applied.
+                "job_status": "Saved",
+            }
+        )
+
+    if not final_rows:
+        return FinalizeSummary(
+            processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+            enriched=BucketCount(count=0, ids=[]),
+            skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+            failed=BucketCount(count=0, ids=[]),
+            errors=errors or ["No ENRICHED rows found"],
+        )
+
+    if dry_run:
+        return FinalizeSummary(
+            processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+            enriched=BucketCount(count=len(processed_ids), ids=processed_ids),
+            skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+            failed=BucketCount(count=0, ids=[]),
+            errors=errors,
+        )
+
+    upsert_result = upsert_jobs_final(repo=repo, rows=final_rows)
+    if not upsert_result.success:
+        failed_ids = list(processed_ids)
+        return FinalizeSummary(
+            processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+            enriched=BucketCount(count=0, ids=[]),
+            skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+            failed=BucketCount(count=len(failed_ids), ids=failed_ids),
+            errors=errors + [upsert_result.error or "upsert_jobs_final failed"],
+        )
+
+    try:
+        persisted_ids = _fetch_persisted_final_ids(repo=repo, job_ids=processed_ids)
+    except RuntimeError as exc:
+        failed_ids = list(processed_ids)
+        return FinalizeSummary(
+            processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+            enriched=BucketCount(count=0, ids=[]),
+            skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+            failed=BucketCount(count=len(failed_ids), ids=failed_ids),
+            errors=errors + [str(exc)],
+        )
+
+    missing_ids = [row_id for row_id in processed_ids if row_id not in persisted_ids]
+    if missing_ids:
+        return FinalizeSummary(
+            processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+            enriched=BucketCount(count=len(processed_ids) - len(missing_ids), ids=[rid for rid in processed_ids if rid in persisted_ids]),
+            skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+            failed=BucketCount(count=len(missing_ids), ids=missing_ids),
+            errors=errors
+            + [
+                "Upsert returned success, but rows were not found in jobs_final for ids: "
+                + ", ".join(missing_ids)
+            ],
+        )
+
+    # Mark successfully finalized rows in jobs_raw so they are not re-processed as ENRICHED.
+    status_update_failures: list[str] = []
+    for row_id in processed_ids:
+        patch_result = repo.patch_rows(
+            table="jobs_raw",
+            payload={"job_status": "Saved"},
+            filters={"id": row_id},
+        )
+        if not patch_result.success:
+            status_update_failures.append(row_id)
+
+    if status_update_failures:
+        return FinalizeSummary(
+            processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+            enriched=BucketCount(
+                count=len(processed_ids) - len(status_update_failures),
+                ids=[rid for rid in processed_ids if rid not in status_update_failures],
+            ),
+            skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+            failed=BucketCount(count=len(status_update_failures), ids=status_update_failures),
+            errors=errors
+            + [
+                "Moved to jobs_final but failed to set jobs_raw.job_status=Saved for ids: "
+                + ", ".join(status_update_failures)
+            ],
+        )
+
+    enriched_ids = list(processed_ids)
+    return FinalizeSummary(
+        processed=BucketCount(count=len(processed_ids), ids=processed_ids),
+        enriched=BucketCount(count=len(enriched_ids), ids=enriched_ids),
+        skipped=BucketCount(count=len(skipped_ids), ids=skipped_ids),
+        failed=BucketCount(count=0, ids=[]),
+        errors=errors,
+    )
+
+
+def run_stage_finalize(
+    repo: SupabaseRepository,
+    limit: int = 50,
+    dry_run: bool = False,
+) -> StageResult:
+    summary = run_stage_finalize_detailed(repo=repo, limit=limit, dry_run=dry_run)
+    return StageResult(
+        stage="jobs_final",
+        success=summary.failed.count == 0 and len(summary.errors) == 0,
+        processed=summary.enriched.count,
+        errors=summary.errors,
+    )
 
 
 def run_pipeline(

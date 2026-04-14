@@ -26,20 +26,43 @@ class CopilotClient:
             from copilot import CopilotClient as SDKCopilotClient
         except ImportError as exc:
             raise RuntimeError(
-                "Missing 'copilot' SDK dependency. Install required package before running enricher."
+                "Missing 'copilot-sdk' dependency. Install with: pip install copilot-sdk"
             ) from exc
 
         return SDKCopilotClient()
 
     async def _extract_async(self, description: str) -> dict[str, Any]:
+        from copilot.session import PermissionHandler
+
         user_prompt = EXTRACTION_USER_PROMPT_TEMPLATE.format(description=description)
         prompt = f"{EXTRACTION_SYSTEM_PROMPT}\n\n{user_prompt}"
 
         async with self._create_client() as client:
-            async with await client.create_session(model=self.config.model) as session:
-                response = await asyncio.wait_for(session.send(prompt), timeout=self.config.timeout_seconds)
-                content = getattr(response, "content", "")
-                parsed = json.loads(content or "{}")
+            async with await client.create_session(
+                model=self.config.model,
+                on_permission_request=PermissionHandler.approve_all,
+            ) as session:
+                content_parts: list[str] = []
+                done = asyncio.Event()
+                error_holder: list[str] = []
+
+                def on_event(event):
+                    event_type = event.type.value if hasattr(event.type, "value") else str(event.type)
+                    if event_type == "assistant.message":
+                        content_parts.append(event.data.content or "")
+                        done.set()
+                    elif event_type == "session.idle":
+                        done.set()
+
+                session.on(on_event)
+                await session.send(prompt)
+                await asyncio.wait_for(done.wait(), timeout=self.config.timeout_seconds)
+
+                content = "".join(content_parts).strip()
+                if not content:
+                    raise ValueError("Model returned empty response.")
+
+                parsed = json.loads(content)
                 if not isinstance(parsed, dict):
                     raise ValueError("Model output was not a JSON object.")
                 return parsed

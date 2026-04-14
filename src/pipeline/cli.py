@@ -11,7 +11,7 @@ from common.config import load_config
 from job_enricher.client_copilot import CopilotClient
 from job_enricher.config import load_copilot_config
 from repository.supabase import SupabaseRepository
-from service.pipeline import run_pipeline, run_stage_enriched, run_stage_metrics, run_stage_raw
+from service.pipeline import run_pipeline, run_stage_enriched, run_stage_finalize, run_stage_metrics, run_stage_raw
 
 from .models import PipelineResult, StageResult
 
@@ -103,4 +103,15 @@ def cmd_stage_metrics(
         repo=repo,
         scraped_count=scraped_count,
     )
+    _print_stage(result)
+
+
+@app.command("stage-finalize")
+def cmd_stage_finalize(
+    limit: int = typer.Option(50, "--limit", min=1, help="Max ENRICHED jobs_raw rows to move to jobs_final."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview move without writing jobs_final rows."),
+) -> None:
+    """Run finalize stage only: move ENRICHED rows from jobs_raw into jobs_final."""
+    repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+    result = run_stage_finalize(repo=repo, limit=limit, dry_run=dry_run)
     _print_stage(result)

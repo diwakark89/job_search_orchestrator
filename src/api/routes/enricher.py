@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from api.models import EnricherRunRequest, EnrichmentSummaryResponse
+from api.models import EnricherRunRequest, EnrichmentCountResponse, EnrichmentSummaryResponse
 from common.client import PostgrestClient
 from common.config import load_config
 from job_enricher.client_copilot import CopilotClient
@@ -30,9 +30,8 @@ def run_enricher(payload: EnricherRunRequest) -> EnrichmentSummaryResponse:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return EnrichmentSummaryResponse(
-        processed=summary.processed,
-        enriched=summary.enriched,
-        skipped=summary.skipped,
-        failed=summary.failed,
+        processed=EnrichmentCountResponse(count=summary.processed.count, ids=summary.processed.ids),
+        skipped=EnrichmentCountResponse(count=summary.skipped.count, ids=summary.skipped.ids),
+        failed=EnrichmentCountResponse(count=summary.failed.count, ids=summary.failed.ids),
         errors=summary.errors,
     )

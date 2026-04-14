@@ -83,6 +83,19 @@ class PostgrestClient:
         row_count: int,
         payload: Any | None,
     ) -> OperationResult:
+        if response.text:
+            try:
+                body = json.loads(response.text)
+                if isinstance(body, dict):
+                    detail = body.get("message") or body.get("error") or body.get("detail") or response.text[:300]
+                else:
+                    detail = response.text[:300]
+            except (json.JSONDecodeError, ValueError):
+                detail = response.text[:300]
+            error_msg = f"HTTP {response.status_code} on {operation} {table}: {detail}"
+        else:
+            error_msg = f"HTTP {response.status_code} on {operation} {table}: Unknown API error"
+
         return OperationResult(
             success=False,
             status_code=response.status_code,
@@ -90,7 +103,7 @@ class PostgrestClient:
             operation=operation,
             row_count=row_count,
             data=payload,
-            error=response.text[:500] if response.text else "Unknown API error",
+            error=error_msg,
         )
 
     def _request(
@@ -180,7 +193,7 @@ class PostgrestClient:
             operation="select",
             params=params,
             extra_headers=headers,
-            expected_codes={200},
+            expected_codes={200, 206},
         )
 
     def upsert(self, table: str, rows: list[dict[str, Any]], on_conflict: str) -> OperationResult:

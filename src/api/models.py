@@ -40,11 +40,15 @@ class EnricherRunRequest(BaseModel):
     dry_run: bool = False
 
 
+class EnrichmentCountResponse(BaseModel):
+    count: int
+    ids: list[str]
+
+
 class EnrichmentSummaryResponse(BaseModel):
-    processed: int
-    enriched: int
-    skipped: int
-    failed: int
+    processed: EnrichmentCountResponse
+    skipped: EnrichmentCountResponse
+    failed: EnrichmentCountResponse
     errors: list[str]
 
 
@@ -62,7 +66,10 @@ class TablesResponse(BaseModel):
 class StageResultResponse(BaseModel):
     stage: str
     success: bool
-    processed: int
+    stage_error: str | None = None
+    processed: EnrichmentCountResponse
+    skipped: EnrichmentCountResponse
+    failed: EnrichmentCountResponse
     errors: list[str]
 
 
@@ -91,6 +98,11 @@ class PipelineStageEnrichRequest(BaseModel):
 
 class PipelineStageMetricsRequest(BaseModel):
     scraped_count: int = Field(default=0, ge=0)
+
+
+class PipelineStageFinalizeRequest(BaseModel):
+    limit: int = Field(default=50, ge=1)
+    dry_run: bool = False
 
 
 def operation_result_to_response(result: OperationResult) -> OperationResultResponse:

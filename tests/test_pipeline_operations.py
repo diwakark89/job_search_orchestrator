@@ -103,7 +103,7 @@ def test_stage_raw_upsert_failure(monkeypatch) -> None:
 def test_stage_enriched_success(monkeypatch) -> None:
     import service.pipeline as ops_module
 
-    fake_summary = MagicMock(enriched=3, errors=[])
+    fake_summary = MagicMock(enriched=MagicMock(count=3, ids=["id-1", "id-2", "id-3"]), errors=[])
     monkeypatch.setattr(ops_module, "enrich_jobs", MagicMock(return_value=fake_summary))
 
     from service.pipeline import run_stage_enriched
@@ -182,7 +182,7 @@ def test_pipeline_full_success(monkeypatch) -> None:
         "upsert_jobs_raw",
         MagicMock(return_value=OperationResult(True, 201, "jobs_raw", "upsert", 2)),
     )
-    fake_summary = MagicMock(enriched=2, errors=[])
+    fake_summary = MagicMock(enriched=MagicMock(count=2, ids=["id-1", "id-2"]), errors=[])
     monkeypatch.setattr(ops_module, "enrich_jobs", MagicMock(return_value=fake_summary))
     monkeypatch.setattr(
         ops_module,
@@ -234,7 +234,7 @@ def test_pipeline_skips_metrics_on_dry_run(monkeypatch) -> None:
         "upsert_jobs_raw",
         MagicMock(return_value=OperationResult(True, 201, "jobs_raw", "upsert", 1)),
     )
-    fake_summary = MagicMock(enriched=1, errors=[])
+    fake_summary = MagicMock(enriched=MagicMock(count=1, ids=["id-1"]), errors=[])
     monkeypatch.setattr(ops_module, "enrich_jobs", MagicMock(return_value=fake_summary))
 
     from service.pipeline import run_pipeline
@@ -250,3 +250,207 @@ def test_pipeline_skips_metrics_on_dry_run(monkeypatch) -> None:
     assert len(result.stages) == 2  # no metrics stage
     stage_names = [s.stage for s in result.stages]
     assert "job_metrics" not in stage_names
+
+
+# ---------------------------------------------------------------------------
+# Stage: jobs_final finalize
+# ---------------------------------------------------------------------------
+
+
+def test_stage_finalize_success(monkeypatch) -> None:
+    import service.pipeline as ops_module
+
+    repo = MagicMock()
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_raw",
+        "select",
+        2,
+        data=[
+            {
+                "id": "id-1",
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/1",
+                "description": "Build APIs.",
+                "language": "English",
+                "job_status": "ENRICHED",
+                "is_deleted": False,
+            },
+            {
+                "id": "id-2",
+                "company_name": "Beta Corp",
+                "role_title": "Platform Engineer",
+                "job_url": "https://example.com/jobs/2",
+                "description": "Ship platform.",
+                "language": "English",
+                "job_status": "ENRICHED",
+                "is_deleted": False,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        ops_module,
+        "upsert_jobs_final",
+        MagicMock(return_value=OperationResult(True, 201, "jobs_final", "upsert", 2)),
+    )
+    repo.client.select.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        2,
+        data=[{"job_id": "id-1"}, {"job_id": "id-2"}],
+    )
+    repo.patch_rows.return_value = OperationResult(True, 204, "jobs_raw", "patch", 1)
+
+    from service.pipeline import run_stage_finalize_detailed
+
+    result = run_stage_finalize_detailed(repo=repo, limit=10, dry_run=False)
+
+    assert result.processed.count == 2
+    assert result.processed.ids == ["id-1", "id-2"]
+    assert result.enriched.count == 2
+    assert result.enriched.ids == ["id-1", "id-2"]
+
+    call_kwargs = ops_module.upsert_jobs_final.call_args.kwargs
+    assert call_kwargs["rows"][0]["job_status"] == "Saved"
+    assert call_kwargs["rows"][1]["job_status"] == "Saved"
+    assert repo.patch_rows.call_count == 2
+
+
+def test_stage_finalize_upsert_failure(monkeypatch) -> None:
+    import service.pipeline as ops_module
+
+    repo = MagicMock()
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_raw",
+        "select",
+        1,
+        data=[
+            {
+                "id": "id-1",
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/1",
+                "description": "Build APIs.",
+                "language": "English",
+                "job_status": "ENRICHED",
+                "is_deleted": False,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        ops_module,
+        "upsert_jobs_final",
+        MagicMock(return_value=OperationResult(False, 500, "jobs_final", "upsert", 0, error="DB error")),
+    )
+
+    from service.pipeline import run_stage_finalize_detailed
+
+    result = run_stage_finalize_detailed(repo=repo, limit=10, dry_run=False)
+
+    assert result.enriched.count == 0
+    assert result.failed.count == 1
+    assert result.failed.ids == ["id-1"]
+    assert "DB error" in result.errors[-1]
+
+
+def test_stage_finalize_verify_missing_rows_after_upsert(monkeypatch) -> None:
+    import service.pipeline as ops_module
+
+    repo = MagicMock()
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_raw",
+        "select",
+        1,
+        data=[
+            {
+                "id": "id-1",
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/1",
+                "description": "Build APIs.",
+                "language": "English",
+                "job_status": "ENRICHED",
+                "is_deleted": False,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        ops_module,
+        "upsert_jobs_final",
+        MagicMock(return_value=OperationResult(True, 201, "jobs_final", "upsert", 1)),
+    )
+    repo.client.select.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        0,
+        data=[],
+    )
+
+    from service.pipeline import run_stage_finalize_detailed
+
+    result = run_stage_finalize_detailed(repo=repo, limit=10, dry_run=False)
+
+    assert result.processed.count == 1
+    assert result.enriched.count == 0
+    assert result.failed.count == 1
+    assert result.failed.ids == ["id-1"]
+    assert "rows were not found in jobs_final" in result.errors[-1]
+
+
+def test_stage_finalize_fails_when_raw_status_patch_fails(monkeypatch) -> None:
+    import service.pipeline as ops_module
+
+    repo = MagicMock()
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_raw",
+        "select",
+        1,
+        data=[
+            {
+                "id": "id-1",
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/1",
+                "description": "Build APIs.",
+                "language": "English",
+                "job_status": "ENRICHED",
+                "is_deleted": False,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        ops_module,
+        "upsert_jobs_final",
+        MagicMock(return_value=OperationResult(True, 201, "jobs_final", "upsert", 1)),
+    )
+    repo.client.select.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        1,
+        data=[{"job_id": "id-1"}],
+    )
+    repo.patch_rows.return_value = OperationResult(False, 500, "jobs_raw", "patch", 0, error="Patch failed")
+
+    from service.pipeline import run_stage_finalize_detailed
+
+    result = run_stage_finalize_detailed(repo=repo, limit=10, dry_run=False)
+
+    assert result.processed.count == 1
+    assert result.enriched.count == 0
+    assert result.failed.count == 1
+    assert result.failed.ids == ["id-1"]
+    assert "failed to set jobs_raw.job_status=Saved" in result.errors[-1]

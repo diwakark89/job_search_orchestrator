@@ -211,7 +211,13 @@ def test_enricher_run_success(monkeypatch) -> None:
             return_value=type(
                 "Summary",
                 (),
-                {"processed": 3, "enriched": 2, "skipped": 1, "failed": 0, "errors": []},
+                {
+                    "processed": type("Bucket", (), {"count": 3, "ids": ["id-1", "id-2", "id-3"]})(),
+                    "enriched": type("Bucket", (), {"count": 2, "ids": ["id-1", "id-2"]})(),
+                    "skipped": type("Bucket", (), {"count": 1, "ids": ["id-3"]})(),
+                    "failed": type("Bucket", (), {"count": 0, "ids": []})(),
+                    "errors": [],
+                },
             )()
         ),
     )
@@ -221,6 +227,9 @@ def test_enricher_run_success(monkeypatch) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["processed"] == 3
-    assert payload["enriched"] == 2
-    assert payload["failed"] == 0
+    assert payload["processed"]["count"] == 3
+    assert payload["processed"]["ids"] == ["id-1", "id-2", "id-3"]
+    assert payload["skipped"]["count"] == 1
+    assert payload["skipped"]["ids"] == ["id-3"]
+    assert payload["failed"]["count"] == 0
+    assert payload["failed"]["ids"] == []

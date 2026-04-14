@@ -1,3 +1,3 @@
-from .cli import app
+from __future__ import annotations
 
-__all__ = ["app"]
+__all__: list[str] = []

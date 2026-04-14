@@ -17,8 +17,8 @@ app = typer.Typer(help="Job enrichment pipeline powered by Copilot SDK.")
 def _print_summary(summary: EnrichmentSummary, dry_run: bool) -> None:
     mode = "DRY-RUN" if dry_run else "WRITE"
     print(
-        f"[cyan]mode={mode} processed={summary.processed} enriched={summary.enriched} "
-        f"skipped={summary.skipped} failed={summary.failed}[/cyan]"
+        f"[cyan]mode={mode} processed={summary.processed.count} enriched={summary.enriched.count} "
+        f"skipped={summary.skipped.count} failed={summary.failed.count}[/cyan]"
     )
     for error in summary.errors[:20]:
         print(f"[red]{error}[/red]")

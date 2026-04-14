@@ -10,7 +10,7 @@ dependencies = [
     "python-dotenv>=1.0.0,<2.0.0",
     "typer>=0.12.3,<1.0.0",
     "rich>=13.7.0,<14.0.0",
-    "copilot>=0.1.0,<1.0.0",
+    "github-copilot-sdk",
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.35.0,<1.0.0",
 ]
