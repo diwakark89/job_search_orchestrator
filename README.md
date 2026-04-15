@@ -222,12 +222,86 @@ Success response:
 
 ```json
 {
-  "processed": 10,
-  "enriched": 8,
-  "skipped": 1,
-  "failed": 1,
+  "processed": {
+    "count": 10,
+    "ids": ["id-1", "id-2"]
+  },
+  "enriched": {
+    "count": 8,
+    "ids": ["id-1"]
+  },
+  "skipped": {
+    "count": 1,
+    "ids": ["id-9"]
+  },
+  "failed": {
+    "count": 1,
+    "ids": ["id-10"]
+  },
   "errors": []
 }
+```
+
+`POST /enricher/by-ids?dry_run=false`
+
+Request body:
+
+```json
+[
+  {
+    "id": "e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"
+  },
+  {
+    "id": "98fa3757-c584-4849-8e7f-16a3d0881d28"
+  }
+]
+```
+
+Notes:
+
+- re-enriches rows regardless of `job_status`
+- excludes soft-deleted rows and reports missing ids in `errors`
+- when `dry_run=true`, computes the summary without patching `jobs_final`
+
+Success response:
+
+```json
+{
+  "processed": {
+    "count": 2,
+    "ids": [
+      "e27be3e8-f4b2-4dba-a353-0a3c0b7125d4",
+      "98fa3757-c584-4849-8e7f-16a3d0881d28"
+    ]
+  },
+  "enriched": {
+    "count": 1,
+    "ids": [
+      "e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"
+    ]
+  },
+  "skipped": {
+    "count": 0,
+    "ids": []
+  },
+  "failed": {
+    "count": 1,
+    "ids": [
+      "98fa3757-c584-4849-8e7f-16a3d0881d28"
+    ]
+  },
+  "errors": [
+    "id=98fa3757-c584-4849-8e7f-16a3d0881d28: jobs_final row not found or soft-deleted"
+  ]
+}
+```
+
+Quick dry-run cURL:
+
+```bash
+curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
+  -H "Content-Type: application/json" \
+  -d '[{"id":"e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"},{"id":"98fa3757-c584-4849-8e7f-16a3d0881d28"}]'
 ```
 
 `POST /pipeline/run`
@@ -275,6 +349,22 @@ Success response:
 ```
 
 `POST /pipeline/stage/ingest`
+
+`POST /pipeline/stage/enriched`
+
+Runs the enrich stage only. Processes SCRAPED jobs and extracts enrichment data from job descriptions.
+
+**Fields updated in `jobs_final`:**
+- `job_status` → "ENRICHED"
+- `tech_stack` → Normalized list of technologies extracted from job description
+- `experience_level` → Normalized experience level (Internship, Entry, Mid, Senior, Lead, or Unknown)
+- `remote_type` → Normalized remote type (Remote, Hybrid, Onsite, or Unknown)
+
+```bash
+curl -X POST http://localhost:8000/pipeline/stage/enriched \
+  -H "Content-Type: application/json" \
+  -d '{"limit":20,"dry_run":false}'
+```
 
 ### Add data to every table
 

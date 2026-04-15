@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 from common.client import OperationResult
 
@@ -40,6 +40,14 @@ class EnricherRunRequest(BaseModel):
     dry_run: bool = False
 
 
+class EnricherByIdRequestItem(BaseModel):
+    id: str = Field(min_length=1)
+
+
+class EnricherByIdsRequest(RootModel[list[EnricherByIdRequestItem]]):
+    pass
+
+
 class EnrichmentCountResponse(BaseModel):
     count: int
     ids: list[str]
@@ -47,6 +55,7 @@ class EnrichmentCountResponse(BaseModel):
 
 class EnrichmentSummaryResponse(BaseModel):
     processed: EnrichmentCountResponse
+    enriched: EnrichmentCountResponse
     skipped: EnrichmentCountResponse
     failed: EnrichmentCountResponse
     errors: list[str]

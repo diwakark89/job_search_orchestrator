@@ -40,6 +40,32 @@ class PostgrestClient:
             return "true" if value else "false"
         return str(value)
 
+    def _format_filter(self, operator: str, value: Any) -> str:
+        if operator == "in":
+            if not isinstance(value, (list, tuple, set, frozenset)):
+                raise ValueError("The 'in' operator requires a collection value.")
+            joined = ",".join(self._stringify_filter_value(item) for item in value)
+            return f"in.({joined})"
+        return f"{operator}.{self._stringify_filter_value(value)}"
+
+    def _build_filter_params(
+        self,
+        filters: dict[str, Any] | None,
+        default_operator: str,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        if not filters:
+            return params
+
+        for key, value in filters.items():
+            operator = default_operator
+            filter_value = value
+            if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
+                operator, filter_value = value
+            params[key] = self._format_filter(operator, filter_value)
+
+        return params
+
     @staticmethod
     def _row_count(body: Any | None) -> int:
         if isinstance(body, list):
@@ -90,7 +116,7 @@ class PostgrestClient:
                     detail = body.get("message") or body.get("error") or body.get("detail") or response.text[:300]
                 else:
                     detail = response.text[:300]
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError:
                 detail = response.text[:300]
             error_msg = f"HTTP {response.status_code} on {operation} {table}: {detail}"
         else:
@@ -172,10 +198,7 @@ class PostgrestClient:
         ascending: bool = True,
     ) -> OperationResult:
         params: dict[str, Any] = {"select": columns}
-
-        if filters:
-            for key, value in filters.items():
-                params[key] = f"{operator}.{self._stringify_filter_value(value)}"
+        params.update(self._build_filter_params(filters, operator))
 
         if order_by:
             direction = "asc" if ascending else "desc"
@@ -227,9 +250,7 @@ class PostgrestClient:
         filters: dict[str, Any],
         operator: str = "eq",
     ) -> OperationResult:
-        params = {
-            key: f"{operator}.{self._stringify_filter_value(value)}" for key, value in filters.items()
-        }
+        params = self._build_filter_params(filters, operator)
         return self._request(
             method="PATCH",
             table=table,
@@ -246,9 +267,7 @@ class PostgrestClient:
         operator: str = "eq",
         treat_404_as_success: bool = False,
     ) -> OperationResult:
-        params = {
-            key: f"{operator}.{self._stringify_filter_value(value)}" for key, value in filters.items()
-        }
+        params = self._build_filter_params(filters, operator)
         expected = {200, 204}
         if treat_404_as_success:
             expected.add(404)

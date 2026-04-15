@@ -73,6 +73,7 @@ def _stage_to_response(stage) -> StageResultResponse:
 def _stage_to_bucket_response(stage) -> EnrichmentSummaryResponse:
     return EnrichmentSummaryResponse(
         processed=EnrichmentCountResponse(count=stage.processed, ids=[]),
+        enriched=EnrichmentCountResponse(count=0, ids=[]),
         skipped=EnrichmentCountResponse(count=0, ids=[]),
         failed=EnrichmentCountResponse(count=len(stage.errors), ids=[]),
         errors=stage.errors,
@@ -136,6 +137,7 @@ def pipeline_stage_enriched(payload: PipelineStageEnrichRequest) -> EnrichmentSu
 
     return EnrichmentSummaryResponse(
         processed=EnrichmentCountResponse(count=result.processed.count, ids=result.processed.ids),
+        enriched=EnrichmentCountResponse(count=result.enriched.count, ids=result.enriched.ids),
         skipped=EnrichmentCountResponse(count=result.skipped.count, ids=result.skipped.ids),
         failed=EnrichmentCountResponse(count=result.failed.count, ids=result.failed.ids),
         errors=result.errors,

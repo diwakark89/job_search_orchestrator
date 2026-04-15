@@ -188,6 +188,7 @@ def test_stage_ingest_endpoint_success(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["processed"]["count"] == 2
+    assert payload["enriched"]["count"] == 0
     assert payload["failed"]["count"] == 0
 
 
@@ -204,6 +205,7 @@ def test_stage_enriched_endpoint_success(monkeypatch) -> None:
         (),
         {
             "processed": type("Bucket", (), {"count": 3, "ids": ["id-1", "id-2", "id-3"]})(),
+            "enriched": type("Bucket", (), {"count": 2, "ids": ["id-1", "id-2"]})(),
             "skipped": type("Bucket", (), {"count": 0, "ids": []})(),
             "failed": type("Bucket", (), {"count": 0, "ids": []})(),
             "errors": [],
@@ -223,6 +225,8 @@ def test_stage_enriched_endpoint_success(monkeypatch) -> None:
     payload = response.json()
     assert payload["processed"]["count"] == 3
     assert payload["processed"]["ids"] == ["id-1", "id-2", "id-3"]
+    assert payload["enriched"]["count"] == 2
+    assert payload["enriched"]["ids"] == ["id-1", "id-2"]
     assert payload["failed"]["count"] == 0
 
 

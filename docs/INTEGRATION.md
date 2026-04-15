@@ -174,6 +174,7 @@ pip install -r requirements.txt
 | Soft delete helper | `db soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
 | Get metrics | n/a | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
 | Enricher | `enricher enrich` | `service.enricher.enrich_jobs` | `jobs_final` | `POST /enricher/run` | Reads SCRAPED rows, patches ENRICHED |
+| Enricher by ids | n/a | `service.enricher.enrich_jobs_by_ids` | `jobs_final` | `POST /enricher/by-ids?dry_run=true|false` | Re-enriches requested ids without changing job_status |
 | Pipeline runner | `pipeline run`, `pipeline stage-*` | `service.pipeline.run_pipeline`, `run_stage_ingest`, `run_stage_enriched` | `jobs_final` | `POST /pipeline/*` | 2-stage orchestration |
 
 Important constraints:
@@ -573,10 +574,22 @@ Supported request and response:
 
 ```json
 {
-  "processed": 10,
-  "enriched": 8,
-  "skipped": 1,
-  "failed": 1,
+  "processed": {
+    "count": 10,
+    "ids": ["id-1", "id-2"]
+  },
+  "enriched": {
+    "count": 8,
+    "ids": ["id-1"]
+  },
+  "skipped": {
+    "count": 1,
+    "ids": ["id-9"]
+  },
+  "failed": {
+    "count": 1,
+    "ids": ["id-10"]
+  },
   "errors": []
 }
 ```
@@ -595,6 +608,92 @@ cURL:
 curl -X POST http://localhost:8000/enricher/run \
   -H "Content-Type: application/json" \
   -d '{"limit":20,"dry_run":true}'
+```
+
+#### POST /enricher/by-ids
+
+Run enrichment for the requested `jobs_final` ids regardless of `job_status`.
+
+Supported request and response:
+
+- Query parameter: `dry_run=true|false` (defaults to `false`)
+- Request body:
+
+```json
+[
+  {
+    "id": "e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"
+  },
+  {
+    "id": "98fa3757-c584-4849-8e7f-16a3d0881d28"
+  }
+]
+```
+
+- Success response (`200`):
+
+```json
+{
+  "processed": {
+    "count": 2,
+    "ids": [
+      "e27be3e8-f4b2-4dba-a353-0a3c0b7125d4",
+      "98fa3757-c584-4849-8e7f-16a3d0881d28"
+    ]
+  },
+  "enriched": {
+    "count": 1,
+    "ids": [
+      "e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"
+    ]
+  },
+  "skipped": {
+    "count": 0,
+    "ids": []
+  },
+  "failed": {
+    "count": 1,
+    "ids": [
+      "98fa3757-c584-4849-8e7f-16a3d0881d28"
+    ]
+  },
+  "errors": [
+    "id=98fa3757-c584-4849-8e7f-16a3d0881d28: jobs_final row not found or soft-deleted"
+  ]
+}
+```
+
+- Common error (`502`) when the service layer raises a runtime failure:
+
+```json
+{
+  "detail": "Failed to fetch requested jobs_final rows."
+}
+```
+
+cURL:
+
+```bash
+curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
+  -H "Content-Type: application/json" \
+  -d '[{"id":"e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"},{"id":"98fa3757-c584-4849-8e7f-16a3d0881d28"}]'
+```
+
+PowerShell live verification using existing rows:
+
+```powershell
+$rowsResp = Invoke-RestMethod -Method Get -Uri "http://localhost:8000/db/jobs-final"
+$ids = @($rowsResp.rows | Where-Object { $_.id } | Select-Object -First 2 -ExpandProperty id)
+if ($ids.Count -eq 0) { throw "No jobs_final ids found from /db/jobs-final" }
+
+$payload = @(
+  @{ id = "$($ids[0])" },
+  @{ id = "$($ids[1])" }
+) | ConvertTo-Json -Depth 4
+
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/enricher/by-ids?dry_run=true" `
+  -ContentType "application/json" `
+  -Body $payload | ConvertTo-Json -Depth 8
 ```
 
 ### 6.4 Pipeline endpoints
@@ -697,7 +796,14 @@ Supported request and response:
 
 #### POST /pipeline/stage/enriched
 
-Runs the enrich stage only.
+Runs the enrich stage only. Processes `jobs_final` rows with `job_status=SCRAPED` and enriches them with extracted metadata from job descriptions.
+
+**Fields updated on `jobs_final` rows:**
+
+- `job_status` → "ENRICHED"
+- `tech_stack` → Normalized array of technology names extracted from job description
+- `experience_level` → Normalized experience level from the job description (possible values: "Internship", "Entry", "Mid", "Senior", "Lead", "Unknown")
+- `remote_type` → Normalized remote work type from the job description (possible values: "Remote", "Hybrid", "Onsite", "Unknown")
 
 Supported request and response:
 
@@ -727,6 +833,14 @@ Supported request and response:
 {
   "detail": "Copilot enrichment failed"
 }
+```
+
+cURL example:
+
+```bash
+curl -X POST http://localhost:8000/pipeline/stage/enriched \
+  -H "Content-Type: application/json" \
+  -d '{"limit":20,"dry_run":false}'
 ```
 
 #### GET /pipeline/metrics

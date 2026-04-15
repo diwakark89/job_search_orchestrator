@@ -202,7 +202,111 @@ def test_enricher_run_success(monkeypatch) -> None:
     payload = response.json()
     assert payload["processed"]["count"] == 3
     assert payload["processed"]["ids"] == ["id-1", "id-2", "id-3"]
+    assert payload["enriched"]["count"] == 2
+    assert payload["enriched"]["ids"] == ["id-1", "id-2"]
     assert payload["skipped"]["count"] == 1
     assert payload["skipped"]["ids"] == ["id-3"]
     assert payload["failed"]["count"] == 0
     assert payload["failed"]["ids"] == []
+
+
+def test_enricher_by_ids_success(monkeypatch) -> None:
+    import api.routes.enricher as enricher_module
+
+    monkeypatch.setattr(enricher_module, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "CopilotClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_copilot_config", MagicMock(return_value=object()))
+    enrich_jobs_by_ids_mock = MagicMock(
+        return_value=type(
+            "Summary",
+            (),
+            {
+                "processed": type("Bucket", (), {"count": 3, "ids": ["id-1", "id-2", "id-3"]})(),
+                "enriched": type("Bucket", (), {"count": 1, "ids": ["id-1"]})(),
+                "skipped": type("Bucket", (), {"count": 1, "ids": ["id-2"]})(),
+                "failed": type("Bucket", (), {"count": 1, "ids": ["id-3"]})(),
+                "errors": ["id=id-3: jobs_final row not found or soft-deleted"],
+            },
+        )()
+    )
+    monkeypatch.setattr(enricher_module, "enrich_jobs_by_ids", enrich_jobs_by_ids_mock)
+
+    client = _make_client()
+    response = client.post("/enricher/by-ids", json=[{"id": "id-1"}, {"id": "id-2"}, {"id": "id-3"}])
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["processed"]["count"] == 3
+    assert payload["enriched"]["count"] == 1
+    assert payload["skipped"]["count"] == 1
+    assert payload["failed"]["count"] == 1
+    assert payload["errors"] == ["id=id-3: jobs_final row not found or soft-deleted"]
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["ids"] == ["id-1", "id-2", "id-3"]
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["dry_run"] is False
+
+
+def test_enricher_by_ids_supports_dry_run(monkeypatch) -> None:
+    import api.routes.enricher as enricher_module
+
+    monkeypatch.setattr(enricher_module, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "CopilotClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_copilot_config", MagicMock(return_value=object()))
+    enrich_jobs_by_ids_mock = MagicMock(
+        return_value=type(
+            "Summary",
+            (),
+            {
+                "processed": type("Bucket", (), {"count": 1, "ids": ["id-1"]})(),
+                "enriched": type("Bucket", (), {"count": 1, "ids": ["id-1"]})(),
+                "skipped": type("Bucket", (), {"count": 0, "ids": []})(),
+                "failed": type("Bucket", (), {"count": 0, "ids": []})(),
+                "errors": [],
+            },
+        )()
+    )
+    monkeypatch.setattr(enricher_module, "enrich_jobs_by_ids", enrich_jobs_by_ids_mock)
+
+    client = _make_client()
+    response = client.post("/enricher/by-ids?dry_run=true", json=[{"id": "id-1"}])
+
+    assert response.status_code == 200
+    assert response.json()["enriched"]["ids"] == ["id-1"]
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["dry_run"] is True
+
+
+def test_enricher_by_ids_validation_error(monkeypatch) -> None:
+    import api.routes.enricher as enricher_module
+
+    monkeypatch.setattr(enricher_module, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "CopilotClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_copilot_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "enrich_jobs_by_ids", MagicMock(side_effect=ValueError("bad input")))
+
+    client = _make_client()
+    response = client.post("/enricher/by-ids", json=[{"id": "id-1"}])
+
+    assert response.status_code == 400
+    assert "bad input" in response.json()["detail"]
+
+
+def test_enricher_by_ids_runtime_error(monkeypatch) -> None:
+    import api.routes.enricher as enricher_module
+
+    monkeypatch.setattr(enricher_module, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "CopilotClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "load_copilot_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(enricher_module, "enrich_jobs_by_ids", MagicMock(side_effect=RuntimeError("DB down")))
+
+    client = _make_client()
+    response = client.post("/enricher/by-ids", json=[{"id": "id-1"}])
+
+    assert response.status_code == 502
+    assert "DB down" in response.json()["detail"]
