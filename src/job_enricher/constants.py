@@ -5,10 +5,8 @@ Return strict JSON only with keys:
 - tech_stack: array of strings
 - experience_level: one of [Intern, Junior, Mid, Senior, Staff, Principal, Lead, Unknown]
 - remote_type: one of [Onsite, Hybrid, Remote, Unknown]
-- visa_sponsorship: boolean or null
-- english_friendly: boolean or null
 
-If unsure, use null booleans and Unknown enum fields. No markdown.
+If unsure, use Unknown enum fields. No markdown.
 """
 
 EXTRACTION_USER_PROMPT_TEMPLATE = """Extract structured job metadata from this job description:

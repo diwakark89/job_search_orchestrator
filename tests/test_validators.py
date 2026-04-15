@@ -31,12 +31,12 @@ class TestJobsFinalValidator:
         assert "job_id" not in result[0]
 
     def test_explicit_job_id_preserved(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}]
+        rows = [{"id": "aaaaaaaa-0000-0000-0000-000000000001"}]
         result = validate_jobs_final_rows(rows)
-        assert result[0]["job_id"] == "aaaaaaaa-0000-0000-0000-000000000001"
+        assert "id" not in result[0]  # id is filtered out by exclude_none
 
     def test_defaults_applied(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000002"}]
+        rows = [{"company_name": "Acme"}]
         result = validate_jobs_final_rows(rows)
         assert result[0].get("match_score") == 90
         assert result[0].get("language") == "English"
@@ -44,42 +44,42 @@ class TestJobsFinalValidator:
         assert result[0].get("job_status") == "SAVED"
 
     def test_display_form_normalised_to_uppercase(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000003", "job_status": "Resume-Rejected"}]
+        rows = [{"job_status": "Resume-Rejected"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["job_status"] == "RESUME_REJECTED"
 
     def test_uppercase_preserved(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000004", "job_status": "INTERVIEW_REJECTED"}]
+        rows = [{"job_status": "INTERVIEW_REJECTED"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["job_status"] == "INTERVIEW_REJECTED"
 
     def test_case_insensitive_status_accepted(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000008", "job_status": "saved"}]
+        rows = [{"job_status": "saved"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["job_status"] == "SAVED"
 
     def test_invalid_job_status(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000005", "job_status": "UNKNOWN_STATUS"}]
+        rows = [{"job_status": "UNKNOWN_STATUS"}]
         with pytest.raises(Exception):
             validate_jobs_final_rows(rows)
 
     def test_scraped_job_status_valid(self):
-        rows = [{"job_url": "https://example.com/1", "job_status": "SCRAPED"}]
+        rows = [{"job_status": "SCRAPED"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["job_status"] == "SCRAPED"
 
     def test_enriched_job_status_valid(self):
-        rows = [{"job_url": "https://example.com/2", "job_status": "ENRICHED"}]
+        rows = [{"job_status": "ENRICHED"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["job_status"] == "ENRICHED"
 
     def test_epoch_ms_timestamp_normalised(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000006", "saved_at": 1743674410421}]
+        rows = [{"saved_at": 1743674410421}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["saved_at"].endswith("Z"), "saved_at must be ISO-8601 UTC"
 
     def test_extra_field_rejected(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000007", "unknown_column": "bad"}]
+        rows = [{"unknown_column": "bad"}]
         with pytest.raises(Exception):
             validate_jobs_final_rows(rows)
 
@@ -94,49 +94,46 @@ class TestJobsFinalValidator:
             "Interview-Rejected": "INTERVIEW_REJECTED",
         }
         for display, expected in cases.items():
-            rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000009", "job_status": display}]
+            rows = [{"job_status": display}]
             result = validate_jobs_final_rows(rows)
             assert result[0]["job_status"] == expected, f"{display} should normalise to {expected}"
 
     def test_valid_decision(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000020", "decision": "AUTO_APPROVE"}]
+        rows = [{"decision": "AUTO_APPROVE"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["decision"] == "AUTO_APPROVE"
 
     def test_invalid_decision(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000021", "decision": "APPROVE"}]
+        rows = [{"decision": "APPROVE"}]
         with pytest.raises(Exception):
             validate_jobs_final_rows(rows)
 
     def test_valid_user_action(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000030", "user_action": "APPROVED"}]
+        rows = [{"user_action": "APPROVED"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["user_action"] == "APPROVED"
 
     def test_invalid_user_action(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000031", "user_action": "MAYBE"}]
+        rows = [{"user_action": "MAYBE"}]
         with pytest.raises(Exception):
             validate_jobs_final_rows(rows)
 
     def test_approved_at_epoch_normalised(self):
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000032", "approved_at": 1743674410421}]
+        rows = [{"approved_at": 1743674410421}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["approved_at"].endswith("Z")
 
     def test_enrichment_fields_accepted(self):
         rows = [{
-            "job_id": "aaaaaaaa-0000-0000-0000-000000000040",
             "tech_stack": ["Python", "FastAPI"],
             "experience_level": "Senior",
             "remote_type": "Hybrid",
-            "visa_sponsorship": False,
-            "english_friendly": True,
         }]
         result = validate_jobs_final_rows(rows)
         assert result[0]["tech_stack"] == ["Python", "FastAPI"]
 
     def test_source_platform_allowed(self):
-        rows = [{"job_url": "https://example.com/3", "source_platform": "indeed"}]
+        rows = [{"source_platform": "indeed"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["source_platform"] == "indeed"
 

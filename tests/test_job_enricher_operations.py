@@ -25,8 +25,6 @@ class _FakeCopilotClient:
                     "tech_stack": ["python", "postgres"],
                     "experience_level": "Senior",
                     "remote_type": "Remote",
-                    "visa_sponsorship": False,
-                    "english_friendly": True,
                 },
                 "error": None,
             },
@@ -43,9 +41,9 @@ def test_enrich_jobs_dry_run_counts() -> None:
         "jobs_final",
         "select",
         [
-            {"job_id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False},
-            {"job_id": "id-2", "description": "", "job_status": "SCRAPED", "is_deleted": False},
-            {"job_id": "id-3", "description": "bad description", "job_status": "SCRAPED", "is_deleted": False},
+            {"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False},
+            {"id": "id-2", "description": "", "job_status": "SCRAPED", "is_deleted": False},
+            {"id": "id-3", "description": "bad description", "job_status": "SCRAPED", "is_deleted": False},
         ],
     )
 
@@ -64,7 +62,7 @@ def test_enrich_jobs_write_patches_jobs_final() -> None:
     repo.select_rows.return_value = _ok(
         "jobs_final",
         "select",
-        [{"job_id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
+        [{"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
     )
     repo.patch_rows.return_value = OperationResult(True, 204, "jobs_final", "patch", 1)
 
@@ -76,7 +74,7 @@ def test_enrich_jobs_write_patches_jobs_final() -> None:
     call_kwargs = repo.patch_rows.call_args.kwargs
     assert call_kwargs["table"] == "jobs_final"
     assert call_kwargs["payload"]["job_status"] == "ENRICHED"
-    assert call_kwargs["filters"] == {"job_id": "id-1"}
+    assert call_kwargs["filters"] == {"id": "id-1"}
 
 
 def test_enrich_jobs_patch_failure_records_error() -> None:
@@ -84,7 +82,7 @@ def test_enrich_jobs_patch_failure_records_error() -> None:
     repo.select_rows.return_value = _ok(
         "jobs_final",
         "select",
-        [{"job_id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
+        [{"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
     )
     repo.patch_rows.return_value = OperationResult(False, 500, "jobs_final", "patch", 0, error="DB error")
 

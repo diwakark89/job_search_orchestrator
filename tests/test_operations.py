@@ -13,7 +13,7 @@ from common.client import OperationResult, PostgrestClient
 from common.config import SupabaseConfig
 from repository.supabase import SupabaseRepository
 from service.tables import (
-    delete_jobs_final_by_job_id,
+    delete_jobs_final_by_id,
     insert_shared_links,
     soft_delete_jobs_final,
     upsert_jobs_final,
@@ -54,7 +54,7 @@ def _mock_repo(result: OperationResult | None = None) -> SupabaseRepository:
 
 
 class TestRepositoryUpsertRows:
-    VALID_JF_ROW = {"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}
+    VALID_JF_ROW = {"id": "aaaaaaaa-0000-0000-0000-000000000001"}
 
     def test_calls_upsert_with_correct_conflict_key(self):
         client = _mock_client(_ok())
@@ -62,13 +62,13 @@ class TestRepositoryUpsertRows:
         result = repo.upsert_rows("jobs_final", [self.VALID_JF_ROW])
         client.upsert.assert_called_once()
         _, kwargs = client.upsert.call_args
-        assert kwargs["on_conflict"] == "job_id"
+        assert kwargs["on_conflict"] == "id"
         assert result.success is True
 
     def test_unsupported_table_raises(self):
         repo = SupabaseRepository(_mock_client(_ok()))
         with pytest.raises(ValueError, match="Unsupported table"):
-            repo.upsert_rows("nonexistent_table", [{"job_id": "x"}])
+            repo.upsert_rows("nonexistent_table", [{"id": "x"}])
 
     def test_shared_links_defaults_conflict_to_url(self):
         client = _mock_client(_ok())
@@ -80,7 +80,7 @@ class TestRepositoryUpsertRows:
     def test_invalid_payload_raises_before_network_call(self):
         client = _mock_client(_ok())
         repo = SupabaseRepository(client)
-        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000002", "job_status": "GARBAGE"}]
+        rows = [{"id": "aaaaaaaa-0000-0000-0000-000000000002", "job_status": "GARBAGE"}]
         with pytest.raises(Exception):
             repo.upsert_rows("jobs_final", rows)
         client.upsert.assert_not_called()
@@ -108,7 +108,7 @@ class TestRepositoryPatchRows:
     def test_patch_called_with_filters(self):
         client = _mock_client(_ok(operation="patch"))
         repo = SupabaseRepository(client)
-        result = repo.patch_rows("jobs_final", {"job_status": "Applied"}, {"job_id": "abc"})
+        result = repo.patch_rows("jobs_final", {"job_status": "Applied"}, {"id": "abc"})
         client.patch.assert_called_once()
         assert result.success is True
 
@@ -117,14 +117,14 @@ class TestRepositoryDeleteRows:
     def test_delete_called_with_filters(self):
         client = _mock_client(_ok(operation="delete"))
         repo = SupabaseRepository(client)
-        result = repo.delete_rows("jobs_final", {"job_id": "abc"})
+        result = repo.delete_rows("jobs_final", {"id": "abc"})
         client.delete.assert_called_once()
         assert result.success is True
 
     def test_treat_404_as_success_forwarded(self):
         client = _mock_client(_ok(operation="delete"))
         repo = SupabaseRepository(client)
-        repo.delete_rows("jobs_final", {"job_id": "abc"}, treat_404_as_success=True)
+        repo.delete_rows("jobs_final", {"id": "abc"}, treat_404_as_success=True)
         _, kwargs = client.delete.call_args
         assert kwargs["treat_404_as_success"] is True
 
@@ -132,11 +132,11 @@ class TestRepositoryDeleteRows:
 class TestTableWrappers:
     def test_upsert_jobs_final(self):
         repo = _mock_repo(_ok())
-        result = upsert_jobs_final(repo, [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}])
+        result = upsert_jobs_final(repo, [{"id": "aaaaaaaa-0000-0000-0000-000000000001"}])
         repo.upsert_rows.assert_called_once_with(
             table="jobs_final",
-            rows=[{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}],
-            on_conflict="job_id",
+            rows=[{"id": "aaaaaaaa-0000-0000-0000-000000000001"}],
+            on_conflict="id",
         )
         assert result.success is True
 
@@ -150,12 +150,12 @@ class TestTableWrappers:
         )
         assert result.success is True
 
-    def test_delete_jobs_final_by_job_id(self):
+    def test_delete_jobs_final_by_id(self):
         repo = _mock_repo(_ok(operation="delete"))
-        delete_jobs_final_by_job_id(repo, "aaaaaaaa-0000-0000-0000-000000000001")
+        delete_jobs_final_by_id(repo, "aaaaaaaa-0000-0000-0000-000000000001")
         repo.delete_rows.assert_called_once_with(
             table="jobs_final",
-            filters={"job_id": "aaaaaaaa-0000-0000-0000-000000000001"},
+            filters={"id": "aaaaaaaa-0000-0000-0000-000000000001"},
             treat_404_as_success=True,
         )
 

@@ -40,35 +40,21 @@ def _normalize_enum(value: Any, allowed: set[str]) -> str:
     return cleaned if cleaned in allowed else "Unknown"
 
 
-def _normalize_bool_or_none(value: Any) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "yes", "y"}:
-            return True
-        if lowered in {"false", "no", "n"}:
-            return False
-    return None
-
-
-def build_enriched_row(job_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def build_enriched_row(row_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {
-        "job_id": job_id,
+        "id": row_id,
         "tech_stack": _normalize_tech_stack(payload.get("tech_stack")),
         "experience_level": _normalize_enum(payload.get("experience_level"), ALLOWED_EXPERIENCE_LEVELS),
         "remote_type": _normalize_enum(payload.get("remote_type"), ALLOWED_REMOTE_TYPES),
-        "visa_sponsorship": _normalize_bool_or_none(payload.get("visa_sponsorship")),
-        "english_friendly": _normalize_bool_or_none(payload.get("english_friendly")),
     }
 
 
 def enrich_job_row(copilot_client: CopilotClient, job_row: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
-    job_id = str(job_row.get("job_id", "")).strip()
+    row_id = str(job_row.get("id", "")).strip()
     description = str(job_row.get("description", "")).strip()
 
-    if not job_id:
-        return None, "jobs_final row missing job_id"
+    if not row_id:
+        return None, "jobs_final row missing id"
     if not description:
         return None, "jobs_final row missing description"
 
@@ -77,6 +63,6 @@ def enrich_job_row(copilot_client: CopilotClient, job_row: dict[str, Any]) -> tu
         return None, result.error or "Unknown extraction error"
 
     try:
-        return build_enriched_row(job_id=job_id, payload=result.data), None
+        return build_enriched_row(row_id=row_id, payload=result.data), None
     except Exception as exc:  # noqa: BLE001
         return None, f"Validation failed: {exc}"

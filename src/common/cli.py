@@ -13,7 +13,7 @@ from .constants import DEFAULT_CONFLICT_KEYS, VALID_TABLES
 
 from repository.supabase import SupabaseRepository
 from service.tables import (
-    delete_jobs_final_by_job_id,
+    delete_jobs_final_by_id,
     soft_delete_jobs_final,
 )
 
@@ -138,7 +138,7 @@ def cmd_delete(
 @app.command("soft-delete")
 def cmd_soft_delete(
     table: str = typer.Option(..., "--table", help="Only jobs_final."),
-    record_id: str = typer.Option(..., "--record-id", help="job_id for jobs_final."),
+    record_id: str = typer.Option(..., "--record-id", help="id for jobs_final."),
     hard_delete: bool = typer.Option(False, "--hard-delete", help="Perform hard delete after soft delete."),
 ) -> None:
     repo = _repo()
@@ -152,8 +152,8 @@ def cmd_soft_delete(
 
 
 @app.command("delete-jobs-final")
-def cmd_delete_jobs_final(job_id: str = typer.Option(..., "--job-id")) -> None:
-    result = delete_jobs_final_by_job_id(repo=_repo(), job_id=job_id)
+def cmd_delete_jobs_final(job_id: str = typer.Option(..., "--id")) -> None:
+    result = delete_jobs_final_by_id(repo=_repo(), job_id=job_id)
     _print_result(result)
 
 

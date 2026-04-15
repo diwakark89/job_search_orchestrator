@@ -18,31 +18,6 @@ ALTER TABLE public.jobs_final
   ADD COLUMN IF NOT EXISTS external_id   text          NULL,
   ADD COLUMN IF NOT EXISTS location      text          NULL,
   ADD COLUMN IF NOT EXISTS source_platform text        NULL;
-
--- ── 2. Add columns from jobs_enriched ────────────────────────────────────────
-ALTER TABLE public.jobs_final
-  ADD COLUMN IF NOT EXISTS tech_stack         text[]    NULL,
-  ADD COLUMN IF NOT EXISTS experience_level   text      NULL,
-  ADD COLUMN IF NOT EXISTS remote_type        text      NULL,
-  ADD COLUMN IF NOT EXISTS visa_sponsorship   boolean   NULL,
-  ADD COLUMN IF NOT EXISTS english_friendly   boolean   NULL;
-
--- ── 3. Add columns from job_decisions ────────────────────────────────────────
-ALTER TABLE public.jobs_final
-  ADD COLUMN IF NOT EXISTS decision    text      NULL,
-  ADD COLUMN IF NOT EXISTS reason      text      NULL,
-  ADD COLUMN IF NOT EXISTS confidence  numeric   NULL;
-
--- ── 4. Add columns from job_approvals ────────────────────────────────────────
-ALTER TABLE public.jobs_final
-  ADD COLUMN IF NOT EXISTS user_action  text              NULL,
-  ADD COLUMN IF NOT EXISTS approved_at  timestamptz       NULL;
-
--- ── 5. Set DEFAULT on job_id so pipeline auto-generates UUIDs ────────────────
-ALTER TABLE public.jobs_final
-  ALTER COLUMN job_id SET DEFAULT gen_random_uuid();
-
--- ── 6. Expand job_status CHECK to include pipeline stages ────────────────────
 ALTER TABLE public.jobs_final DROP CONSTRAINT IF EXISTS jobs_final_job_status_check;
 ALTER TABLE public.jobs_final ADD CONSTRAINT jobs_final_job_status_check CHECK (
   job_status IS NULL OR job_status = ANY (ARRAY[
@@ -76,13 +51,17 @@ ALTER TABLE public.jobs_final
 CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_final_content_hash
   ON public.jobs_final USING btree (content_hash);
 
--- ── 11. Add index on job_url for pipeline lookups ────────────────────────────
--- (Already covered by the UNIQUE constraint above, but explicit for clarity)
-
--- ── 12. Drop the FK from jobs_final → jobs_raw (no longer needed) ────────────
+-- ── 11. Drop the FK from jobs_final → jobs_raw (no longer needed) ────────────
 ALTER TABLE public.jobs_final DROP CONSTRAINT IF EXISTS jobs_final_job_id_fkey;
 
--- ── 13. Drop merged tables in FK dependency order ────────────────────────────
+-- ── 12. Remove job_id column (consolidated to id as single business key) ─────
+ALTER TABLE public.jobs_final DROP COLUMN IF EXISTS job_id CASCADE;
+
+-- ── 13. Add UNIQUE constraint on id (primary business key) ────────────────────
+ALTER TABLE public.jobs_final DROP CONSTRAINT IF EXISTS jobs_final_job_id_key;
+ALTER TABLE public.jobs_final ADD CONSTRAINT jobs_final_id_key UNIQUE (id);
+
+-- ── 14. Drop merged tables in FK dependency order ────────────────────────────
 DROP TABLE IF EXISTS public.job_approvals CASCADE;
 DROP TABLE IF EXISTS public.job_decisions CASCADE;
 DROP TABLE IF EXISTS public.jobs_enriched CASCADE;

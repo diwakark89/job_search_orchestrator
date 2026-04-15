@@ -8,17 +8,17 @@ from repository.supabase import SupabaseRepository
 
 
 def upsert_jobs_final(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
-    return repo.upsert_rows(table="jobs_final", rows=rows, on_conflict="job_id")
+    return repo.upsert_rows(table="jobs_final", rows=rows, on_conflict="id")
 
 
 def insert_shared_links(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
     return repo.upsert_rows(table="shared_links", rows=rows, on_conflict="url")
 
 
-def delete_jobs_final_by_job_id(repo: SupabaseRepository, job_id: str) -> OperationResult:
+def delete_jobs_final_by_id(repo: SupabaseRepository, job_id: str) -> OperationResult:
     return repo.delete_rows(
         table="jobs_final",
-        filters={"job_id": job_id},
+        filters={"id": job_id},
         treat_404_as_success=True,
     )
 
@@ -28,13 +28,13 @@ def soft_delete_jobs_final(repo: SupabaseRepository, job_id: str, hard_delete: b
     patch_result = repo.patch_rows(
         table="jobs_final",
         payload={"is_deleted": True, "modified_at": now_iso},
-        filters={"job_id": job_id},
+        filters={"id": job_id},
     )
 
     if not patch_result.success or not hard_delete:
         return patch_result
 
-    return delete_jobs_final_by_job_id(repo, job_id)
+    return delete_jobs_final_by_id(repo, job_id)
 
 
 def get_metrics(repo: SupabaseRepository) -> dict[str, Any]:

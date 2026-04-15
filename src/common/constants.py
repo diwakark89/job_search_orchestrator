@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 DEFAULT_CONFLICT_KEYS: dict[str, str] = {
-    "jobs_final": "job_id",
+    "jobs_final": "id",
     "shared_links": "url",
 }
 

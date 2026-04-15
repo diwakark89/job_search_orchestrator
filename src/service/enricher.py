@@ -31,7 +31,7 @@ class EnrichmentSummary:
 def _fetch_scraped_jobs(repo: SupabaseRepository, limit: int) -> list[dict[str, Any]]:
     result = repo.select_rows(
         table="jobs_final",
-        columns="job_id,description,job_status,is_deleted",
+        columns="id,description,job_status,is_deleted",
         filters={"job_status": "SCRAPED", "is_deleted": False},
         limit=limit,
         order_by="created_at",
@@ -51,7 +51,7 @@ def enrich_jobs(
     scraped_rows = _fetch_scraped_jobs(repo=repo, limit=limit)
     logger.info("enricher fetched %s SCRAPED rows", len(scraped_rows))
 
-    pending_ids = [str(row.get("job_id")) for row in scraped_rows if row.get("job_id")]
+    pending_ids = [str(row.get("id")) for row in scraped_rows if row.get("id")]
 
     enriched_rows: list[dict[str, Any]] = []
     success_ids: list[str] = []
@@ -63,14 +63,14 @@ def enrich_jobs(
         enriched_row, error = enrich_job_row(copilot_client=copilot_client, job_row=row)
         if error:
             if "missing description" in error:
-                skipped_ids.append(str(row.get("job_id")))
+                skipped_ids.append(str(row.get("id")))
             else:
-                errors.append(f"job_id={row.get('job_id')}: {error}")
-                failed_ids.append(str(row.get("job_id")))
+                errors.append(f"id={row.get('id')}: {error}")
+                failed_ids.append(str(row.get("id")))
             continue
         assert enriched_row is not None
         enriched_rows.append(enriched_row)
-        success_ids.append(str(row["job_id"]))
+        success_ids.append(str(row["id"]))
 
     logger.info(
         "enricher extraction summary pending=%s extracted=%s skipped=%s failed=%s",
@@ -90,18 +90,18 @@ def enrich_jobs(
         )
 
     for enriched_row in enriched_rows:
-        job_id = enriched_row.pop("job_id")
+        row_id = enriched_row.pop("id")
         enriched_row["job_status"] = "ENRICHED"
         patch_result = repo.patch_rows(
             table="jobs_final",
             payload=enriched_row,
-            filters={"job_id": job_id},
+            filters={"id": row_id},
         )
         if not patch_result.success:
-            errors.append(f"job_id={job_id}: failed to patch enrichment data")
-            failed_ids.append(job_id)
-            if job_id in success_ids:
-                success_ids.remove(job_id)
+            errors.append(f"id={row_id}: failed to patch enrichment data")
+            failed_ids.append(row_id)
+            if row_id in success_ids:
+                success_ids.remove(row_id)
 
     logger.info("enricher patched %s jobs_final rows", len(success_ids))
 

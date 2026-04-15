@@ -34,7 +34,7 @@ def test_tables_endpoint_lists_supported_tables() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert "jobs_final" in payload["tables"]
-    assert payload["default_conflict_keys"]["jobs_final"] == "job_id"
+    assert payload["default_conflict_keys"]["jobs_final"] == "id"
     assert payload["default_conflict_keys"]["shared_links"] == "url"
 
 
@@ -48,7 +48,7 @@ def test_db_list_rows_success(monkeypatch) -> None:
         "jobs_final",
         "select",
         1,
-        data=[{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}],
+        data=[{"id": "aaaaaaaa-0000-0000-0000-000000000001"}],
     )
     monkeypatch.setattr(tables_module, "_repo", MagicMock(return_value=repo))
 
@@ -59,7 +59,7 @@ def test_db_list_rows_success(monkeypatch) -> None:
     payload = response.json()
     assert payload["table"] == "jobs_final"
     assert payload["count"] == 1
-    assert payload["rows"][0]["job_id"] == "aaaaaaaa-0000-0000-0000-000000000001"
+    assert payload["rows"][0]["id"] == "aaaaaaaa-0000-0000-0000-000000000001"
     repo.select_rows.assert_called_once()
 
 
@@ -72,13 +72,13 @@ def test_db_list_rows_forwards_filters_and_ordering(monkeypatch) -> None:
 
     client = _make_client()
     response = client.get(
-        "/db/jobs-final?job_status=Applied&company_name=Acme&columns=job_id,company_name&limit=25&offset=5&order_by=created_at&ascending=false"
+        "/db/jobs-final?job_status=Applied&company_name=Acme&columns=id,company_name&limit=25&offset=5&order_by=created_at&ascending=false"
     )
 
     assert response.status_code == 200
     repo.select_rows.assert_called_once_with(
         table="jobs_final",
-        columns="job_id,company_name",
+        columns="id,company_name",
         filters={"job_status": "Applied", "company_name": "Acme"},
         limit=25,
         offset=5,
@@ -111,7 +111,7 @@ def test_db_create_rows_success(monkeypatch) -> None:
     client = _make_client()
     response = client.post(
         "/db/jobs-final",
-        json={"rows": [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001"}]},
+        json={"rows": [{"id": "aaaaaaaa-0000-0000-0000-000000000001"}]},
     )
 
     assert response.status_code == 200

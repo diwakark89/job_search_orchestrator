@@ -33,7 +33,7 @@ def normalize_timestamp_fields(row: dict[str, Any], fields: tuple[str, ...]) -> 
 class JobsFinalRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    job_id: str | None = None
+    id: str | None = None
     company_name: str | None = None
     role_title: str | None = None
     job_url: str | None = None
@@ -52,8 +52,6 @@ class JobsFinalRow(BaseModel):
     tech_stack: list[str] | None = None
     experience_level: str | None = None
     remote_type: str | None = None
-    visa_sponsorship: bool | None = None
-    english_friendly: bool | None = None
     decision: str | None = None
     reason: str | None = None
     confidence: float | int | None = None
@@ -107,7 +105,7 @@ def _validate_rows(rows: list[dict[str, Any]], model: type[BaseModel], timestamp
     normalized: list[dict[str, Any]] = []
     for row in rows:
         validated = model.model_validate(row)
-        normalized_row = normalize_timestamp_fields(validated.model_dump(exclude_none=True), timestamp_fields)
+        normalized_row = normalize_timestamp_fields(validated.model_dump(exclude_none=True, exclude={"id"}), timestamp_fields)
         normalized.append(normalized_row)
     return normalized
 
