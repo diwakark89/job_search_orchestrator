@@ -209,6 +209,9 @@ def test_stage_enriched_endpoint_success(monkeypatch) -> None:
             "skipped": type("Bucket", (), {"count": 0, "ids": []})(),
             "failed": type("Bucket", (), {"count": 0, "ids": []})(),
             "errors": [],
+            "copilot_batches_sent": 2,
+            "database_batches_sent": 1,
+            "database_rows_reported": 2,
         },
     )()
     monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
@@ -228,6 +231,9 @@ def test_stage_enriched_endpoint_success(monkeypatch) -> None:
     assert payload["enriched"]["count"] == 2
     assert payload["enriched"]["ids"] == ["id-1", "id-2"]
     assert payload["failed"]["count"] == 0
+    assert payload["copilot_batches_sent"] == 2
+    assert payload["database_batches_sent"] == 1
+    assert payload["database_rows_reported"] == 2
 
 
 # ---------------------------------------------------------------------------

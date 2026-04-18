@@ -63,6 +63,7 @@ class TestRepositoryUpsertRows:
         client.upsert.assert_called_once()
         _, kwargs = client.upsert.call_args
         assert kwargs["on_conflict"] == "id"
+        assert kwargs["rows"][0]["id"] == self.VALID_JF_ROW["id"]
         assert result.success is True
 
     def test_unsupported_table_raises(self):

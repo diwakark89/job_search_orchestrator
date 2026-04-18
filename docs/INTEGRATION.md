@@ -170,7 +170,7 @@ pip install -r requirements.txt
 | Upsert rows | `db upsert` | `repo.upsert_rows`, `upsert_jobs_final` | tables with conflict keys | `POST /db/{table}` | Defaults from `DEFAULT_CONFLICT_KEYS` |
 | Insert rows | `db insert` | `repo.insert_rows`, `insert_shared_links` | insert-only flows | `POST /db/{table}` | Used when no default upsert key exists |
 | Patch rows | `db patch` | `repo.patch_rows` | all tables | `PATCH /db/{table}/{record_id}` | |
-| Hard delete | `db delete`, `db delete-jobs-final` | `repo.delete_rows`, `delete_jobs_final_by_job_id` | all tables | `DELETE /db/{table}/{record_id}` | 404 may be treated as success |
+| Hard delete | `db delete`, `db delete-jobs-final` | `repo.delete_rows`, `delete_jobs_final_by_id` | all tables | `DELETE /db/{table}/{record_id}` | 404 may be treated as success |
 | Soft delete helper | `db soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
 | Get metrics | n/a | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
 | Enricher | `enricher enrich` | `service.enricher.enrich_jobs` | `jobs_final` | `POST /enricher/run` | Reads SCRAPED rows, patches ENRICHED |
@@ -179,7 +179,7 @@ pip install -r requirements.txt
 
 Important constraints:
 
-- `shared_links` does not have a default HTTP upsert conflict key and therefore follows insert behavior.
+- `shared_links` uses URL-based upsert (`on_conflict=url`) for deduplication.
 
 ## 6. HTTP API Reference
 
@@ -233,7 +233,7 @@ Supported request and response:
     "shared_links"
   ],
   "default_conflict_keys": {
-    "jobs_final": "job_id",
+    "jobs_final": "id",
     "shared_links": "url"
   }
 }
@@ -245,7 +245,7 @@ All table endpoints use these slug-to-table mappings:
 
 | URL slug | Database table | Primary key |
 | --- | --- | --- |
-| `jobs-final` | `jobs_final` | `job_id` |
+| `jobs-final` | `jobs_final` | `id` |
 | `shared-links` | `shared_links` | `id` |
 
 Shared write response shape:
@@ -284,7 +284,7 @@ Supported request and response:
 {
   "rows": [
     {
-      "job_id": "550e8400-e29b-41d4-a716-446655440000",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
       "job_status": "APPLIED"
     }
@@ -321,7 +321,7 @@ Supported request and response:
 {
   "rows": [
     {
-      "job_id": "550e8400-e29b-41d4-a716-446655440000",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
       "job_status": "SAVED"
     }
@@ -355,7 +355,7 @@ Request body:
 {
   "rows": [
     {
-      "job_id": "550e8400-e29b-41d4-a716-446655440000"
+      "id": "550e8400-e29b-41d4-a716-446655440000"
     }
   ]
 }
@@ -387,7 +387,7 @@ Example insert for `shared-links`:
 ```bash
 curl -X POST http://localhost:8000/db/shared-links \
   -H "Content-Type: application/json" \
-  -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
+  -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent"}]}'
 ```
 
 #### PATCH /db/{table}/{record_id}
@@ -540,7 +540,7 @@ Add or update one final job row:
 ```bash
 curl -X POST http://localhost:8000/db/jobs-final \
   -H "Content-Type: application/json" \
-  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
+  -d '{"rows":[{"id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
 
 #### `shared-links`
@@ -550,7 +550,7 @@ Add one shared link row:
 ```bash
 curl -X POST http://localhost:8000/db/shared-links \
   -H "Content-Type: application/json" \
-  -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
+  -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent"}]}'
 ```
 
 ### 6.3 Enricher endpoints
@@ -869,7 +869,7 @@ Supported request and response:
 ```bash
 uv run python main.py db tables
 uv run python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
-uv run python main.py db patch --table jobs_final --filter-column job_id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
+uv run python main.py db patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
 uv run python main.py enricher enrich --limit 20 --dry-run
 uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
 ```
@@ -903,7 +903,7 @@ from repository.supabase import SupabaseRepository
 from service.tables import upsert_jobs_final, get_metrics
 
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-upsert_jobs_final(repo, [{"job_id": "550e8400-e29b-41d4-a716-446655440000"}])
+upsert_jobs_final(repo, [{"id": "550e8400-e29b-41d4-a716-446655440000"}])
 metrics = get_metrics(repo)
 print(metrics)  # {"status_counts": {"SAVED": 10, ...}, "total": 10}
 ```

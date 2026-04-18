@@ -1,9 +1,32 @@
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Protocol
 
-from .client_copilot import CopilotClient, CopilotExtractionResult
+from .client_copilot import (
+    CopilotBatchExtractionInput,
+    CopilotBatchExtractionResult,
+    CopilotClient,
+    CopilotExtractionResult,
+)
 from .constants import ALLOWED_EXPERIENCE_LEVELS, ALLOWED_REMOTE_TYPES, CANONICAL_TECH_STACK
+
+
+class SupportsBatchJobExtraction(Protocol):
+    def extract_from_description(self, description: str) -> CopilotExtractionResult: ...
+
+    def extract_from_descriptions(
+        self,
+        items: list[CopilotBatchExtractionInput],
+    ) -> list[CopilotBatchExtractionResult]: ...
+
+
+@dataclass
+class JobRowEnrichmentResult:
+    row_id: str
+    enriched_row: dict[str, Any] | None = None
+    error: str | None = None
+    skipped: bool = False
 
 
 def _normalize_tech(name: str) -> str:
@@ -49,7 +72,10 @@ def build_enriched_row(row_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def enrich_job_row(copilot_client: CopilotClient, job_row: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+def enrich_job_row(
+    copilot_client: SupportsBatchJobExtraction,
+    job_row: dict[str, Any],
+) -> tuple[dict[str, Any] | None, str | None]:
     row_id = str(job_row.get("id", "")).strip()
     description = str(job_row.get("description", "")).strip()
 
@@ -66,3 +92,56 @@ def enrich_job_row(copilot_client: CopilotClient, job_row: dict[str, Any]) -> tu
         return build_enriched_row(row_id=row_id, payload=result.data), None
     except Exception as exc:  # noqa: BLE001
         return None, f"Validation failed: {exc}"
+
+
+def enrich_job_rows(
+    copilot_client: SupportsBatchJobExtraction,
+    job_rows: list[dict[str, Any]],
+) -> list[JobRowEnrichmentResult]:
+    results: list[JobRowEnrichmentResult] = []
+    batch_inputs: list[CopilotBatchExtractionInput] = []
+
+    for job_row in job_rows:
+        row_id = str(job_row.get("id", "")).strip()
+        description = str(job_row.get("description", "")).strip()
+
+        if not row_id:
+            results.append(JobRowEnrichmentResult(row_id="", error="jobs_final row missing id"))
+            continue
+        if not description:
+            results.append(
+                JobRowEnrichmentResult(
+                    row_id=row_id,
+                    error="jobs_final row missing description",
+                    skipped=True,
+                )
+            )
+            continue
+
+        batch_inputs.append(CopilotBatchExtractionInput(row_id=row_id, description=description))
+
+    batch_results = copilot_client.extract_from_descriptions(batch_inputs)
+    for batch_result in batch_results:
+        if not batch_result.success or batch_result.data is None:
+            results.append(
+                JobRowEnrichmentResult(
+                    row_id=batch_result.row_id,
+                    error=batch_result.error or "Unknown extraction error",
+                )
+            )
+            continue
+
+        try:
+            enriched_row = build_enriched_row(row_id=batch_result.row_id, payload=batch_result.data)
+        except Exception as exc:  # noqa: BLE001
+            results.append(
+                JobRowEnrichmentResult(
+                    row_id=batch_result.row_id,
+                    error=f"Validation failed: {exc}",
+                )
+            )
+            continue
+
+        results.append(JobRowEnrichmentResult(row_id=batch_result.row_id, enriched_row=enriched_row))
+
+    return results

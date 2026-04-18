@@ -15,26 +15,26 @@ def insert_shared_links(repo: SupabaseRepository, rows: list[dict]) -> Operation
     return repo.upsert_rows(table="shared_links", rows=rows, on_conflict="url")
 
 
-def delete_jobs_final_by_id(repo: SupabaseRepository, job_id: str) -> OperationResult:
+def delete_jobs_final_by_id(repo: SupabaseRepository, record_id: str) -> OperationResult:
     return repo.delete_rows(
         table="jobs_final",
-        filters={"id": job_id},
+        filters={"id": record_id},
         treat_404_as_success=True,
     )
 
 
-def soft_delete_jobs_final(repo: SupabaseRepository, job_id: str, hard_delete: bool = False) -> OperationResult:
+def soft_delete_jobs_final(repo: SupabaseRepository, record_id: str, hard_delete: bool = False) -> OperationResult:
     now_iso = datetime.now(tz=UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     patch_result = repo.patch_rows(
         table="jobs_final",
         payload={"is_deleted": True, "modified_at": now_iso},
-        filters={"id": job_id},
+        filters={"id": record_id},
     )
 
     if not patch_result.success or not hard_delete:
         return patch_result
 
-    return delete_jobs_final_by_id(repo, job_id)
+    return delete_jobs_final_by_id(repo, record_id)
 
 
 def get_metrics(repo: SupabaseRepository) -> dict[str, Any]:

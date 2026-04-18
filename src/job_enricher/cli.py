@@ -18,7 +18,10 @@ def _print_summary(summary: EnrichmentSummary, dry_run: bool) -> None:
     mode = "DRY-RUN" if dry_run else "WRITE"
     print(
         f"[cyan]mode={mode} processed={summary.processed.count} enriched={summary.enriched.count} "
-        f"skipped={summary.skipped.count} failed={summary.failed.count}[/cyan]"
+        f"skipped={summary.skipped.count} failed={summary.failed.count} "
+        f"copilot_batches_sent={summary.copilot_batches_sent} "
+        f"database_batches_sent={summary.database_batches_sent} "
+        f"database_rows_reported={summary.database_rows_reported}[/cyan]"
     )
     for error in summary.errors[:20]:
         print(f"[red]{error}[/red]")

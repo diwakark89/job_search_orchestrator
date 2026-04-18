@@ -52,6 +52,7 @@ COPILOT_MODEL=gpt-5.4-mini
 COPILOT_TIMEOUT_SECONDS=45
 COPILOT_MAX_RETRIES=3
 COPILOT_RETRY_BACKOFF_SECONDS=1.0
+COPILOT_BATCH_SIZE=20
 ```
 
 ## Run With uv
@@ -158,7 +159,7 @@ Success response:
 {
   "tables": ["jobs_final", "shared_links"],
   "default_conflict_keys": {
-    "jobs_final": "job_id",
+    "jobs_final": "id",
     "shared_links": "url"
   }
 }
@@ -172,7 +173,7 @@ Success response:
 {
   "rows": [
     {
-      "job_id": "550e8400-e29b-41d4-a716-446655440000",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
       "job_status": "APPLIED"
     }
@@ -187,7 +188,6 @@ Common error:
 ```json
 {
   "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
-}
 }
 ```
 
@@ -373,7 +373,7 @@ curl -X POST http://localhost:8000/pipeline/stage/enriched \
 ```bash
 curl -X POST http://localhost:8000/db/jobs-final \
   -H "Content-Type: application/json" \
-  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
+  -d '{"rows":[{"id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
 
 `shared-links`
@@ -381,7 +381,7 @@ curl -X POST http://localhost:8000/db/jobs-final \
 ```bash
 curl -X POST http://localhost:8000/db/shared-links \
   -H "Content-Type: application/json" \
-  -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
+  -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent"}]}'
 ```
 
 ## CLI
@@ -392,7 +392,7 @@ Examples:
 
 ```bash
 uv run python main.py db soft-delete --table jobs_final --record-id 550e8400-e29b-41d4-a716-446655440000
-uv run python main.py db patch --table jobs_final --filter-column job_id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
+uv run python main.py db patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
 uv run python main.py enricher enrich --limit 50
 uv run python main.py pipeline stage-enriched --limit 20 --dry-run
 ```
@@ -417,7 +417,7 @@ from repository.supabase import SupabaseRepository
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
 result = repo.upsert_rows(
     table="jobs_final",
-    rows=[{"job_id": "550e8400-e29b-41d4-a716-446655440000"}],
+    rows=[{"id": "550e8400-e29b-41d4-a716-446655440000"}],
 )
 print(result)
 ```
@@ -431,7 +431,7 @@ from repository.supabase import SupabaseRepository
 from service.tables import upsert_jobs_final
 
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-result = upsert_jobs_final(repo, [{"job_id": "550e8400-e29b-41d4-a716-446655440000"}])
+result = upsert_jobs_final(repo, [{"id": "550e8400-e29b-41d4-a716-446655440000"}])
 print(result)
 ```
 

@@ -49,6 +49,7 @@ COPILOT_MODEL=gpt-5.4-mini
 COPILOT_TIMEOUT_SECONDS=45
 COPILOT_MAX_RETRIES=3
 COPILOT_RETRY_BACKOFF_SECONDS=1.0
+COPILOT_BATCH_SIZE=20
 ```
 
 ## Development Workflow
@@ -180,7 +181,7 @@ docs/              → Integration guide and API skill reference
 
 | Slug (HTTP) | Table Name (DB) | Conflict Key | Notes |
 |-------------|-----------------|--------------|-------|
-| `jobs-final` | `jobs_final` | `job_id` | Supports soft delete |
+| `jobs-final` | `jobs_final` | `id` | Supports soft delete |
 | `shared-links` | `shared_links` | `url` | |
 
 ## Additional Notes

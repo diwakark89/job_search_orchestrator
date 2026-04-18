@@ -21,12 +21,12 @@ from service.tables import soft_delete_jobs_final
 router = APIRouter(prefix="/db", tags=["tables"])
 
 TABLE_CONFIG: dict[str, tuple[str, str]] = {
-    "jobs-final": ("jobs_final", "job_id"),
+    "jobs-final": ("jobs_final", "id"),
     "shared-links": ("shared_links", "id"),
 }
 
 _SOFT_DELETE_TABLES: dict[str, str] = {
-    "jobs_final": "job_id",
+    "jobs_final": "id",
 }
 
 _RESERVED_PARAMS: set[str] = {"columns", "limit", "offset", "order_by", "ascending"}
@@ -188,7 +188,7 @@ def soft_delete_record(table: str, record_id: str, payload: SoftDeleteRequest | 
     repo = _repo()
 
     try:
-        result = soft_delete_jobs_final(repo=repo, job_id=record_id, hard_delete=hard_delete)
+        result = soft_delete_jobs_final(repo=repo, record_id=record_id, hard_delete=hard_delete)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

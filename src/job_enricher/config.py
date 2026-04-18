@@ -12,6 +12,7 @@ class CopilotConfig:
     timeout_seconds: int = 45
     max_retries: int = 3
     retry_backoff_seconds: float = 1.0
+    batch_size: int = 20
 
 
 def load_copilot_config() -> CopilotConfig:
@@ -21,6 +22,7 @@ def load_copilot_config() -> CopilotConfig:
     timeout_value = os.getenv("COPILOT_TIMEOUT_SECONDS", "45").strip()
     max_retries_value = os.getenv("COPILOT_MAX_RETRIES", "3").strip()
     backoff_value = os.getenv("COPILOT_RETRY_BACKOFF_SECONDS", "1.0").strip()
+    batch_size_value = os.getenv("COPILOT_BATCH_SIZE", "20").strip()
 
     if not model:
         raise ValueError("Missing COPILOT_MODEL in environment.")
@@ -49,9 +51,20 @@ def load_copilot_config() -> CopilotConfig:
     if retry_backoff_seconds <= 0:
         raise ValueError("COPILOT_RETRY_BACKOFF_SECONDS must be > 0.")
 
+    try:
+        batch_size = int(batch_size_value)
+    except ValueError as exc:
+        raise ValueError("COPILOT_BATCH_SIZE must be an integer.") from exc
+
+    if batch_size <= 0:
+        raise ValueError("COPILOT_BATCH_SIZE must be > 0.")
+    if batch_size > 20:
+        raise ValueError("COPILOT_BATCH_SIZE must be <= 20.")
+
     return CopilotConfig(
         model=model,
         timeout_seconds=timeout_seconds,
         max_retries=max_retries,
         retry_backoff_seconds=retry_backoff_seconds,
+        batch_size=batch_size,
     )

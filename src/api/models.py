@@ -59,6 +59,9 @@ class EnrichmentSummaryResponse(BaseModel):
     skipped: EnrichmentCountResponse
     failed: EnrichmentCountResponse
     errors: list[str]
+    copilot_batches_sent: int = 0
+    database_batches_sent: int = 0
+    database_rows_reported: int = 0
 
 
 class HealthResponse(BaseModel):

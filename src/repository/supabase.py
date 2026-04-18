@@ -20,9 +20,13 @@ class SupabaseRepository:
             raise ValueError(f"Unsupported table '{table}'. Supported: {sorted(VALID_TABLES)}")
 
     @staticmethod
-    def _validate_rows_for_table(table: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _validate_rows_for_table(
+        table: str,
+        rows: list[dict[str, Any]],
+        preserve_fields: tuple[str, ...] = (),
+    ) -> list[dict[str, Any]]:
         if table == "jobs_final":
-            return validate_jobs_final_rows(rows)
+            return validate_jobs_final_rows(rows, preserve_fields=preserve_fields)
         if table == "shared_links":
             return validate_shared_links_rows(rows)
         raise ValueError(f"No validator configured for table '{table}'.")
@@ -57,11 +61,12 @@ class SupabaseRepository:
         on_conflict: str | None = None,
     ) -> OperationResult:
         self._ensure_table_supported(table)
-        validated_rows = self._validate_rows_for_table(table, rows)
-
         conflict_key = on_conflict or DEFAULT_CONFLICT_KEYS.get(table)
         if not conflict_key:
             raise ValueError(f"No default conflict key for table '{table}'. Provide on_conflict.")
+
+        preserve_fields = (conflict_key,) if conflict_key == "id" else ()
+        validated_rows = self._validate_rows_for_table(table, rows, preserve_fields=preserve_fields)
 
         return self.client.upsert(table=table, rows=validated_rows, on_conflict=conflict_key)
 

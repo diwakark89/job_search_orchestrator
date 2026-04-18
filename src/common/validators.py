@@ -39,7 +39,6 @@ class JobsFinalRow(BaseModel):
     job_url: str | None = None
     description: str | None = None
     match_score: float | int | None = 90
-    tags: list[str] | None = None
     saved_at: str | int | float | datetime | None = None
     job_status: str | None = "SAVED"
     is_deleted: bool = False
@@ -101,17 +100,29 @@ class SharedLinkRow(BaseModel):
         return value
 
 
-def _validate_rows(rows: list[dict[str, Any]], model: type[BaseModel], timestamp_fields: tuple[str, ...]) -> list[dict[str, Any]]:
+def _validate_rows(
+    rows: list[dict[str, Any]],
+    model: type[BaseModel],
+    timestamp_fields: tuple[str, ...],
+    preserve_fields: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for row in rows:
         validated = model.model_validate(row)
-        normalized_row = normalize_timestamp_fields(validated.model_dump(exclude_none=True, exclude={"id"}), timestamp_fields)
+        excluded_fields = {"id"} - set(preserve_fields)
+        normalized_row = normalize_timestamp_fields(
+            validated.model_dump(exclude_none=True, exclude=excluded_fields),
+            timestamp_fields,
+        )
         normalized.append(normalized_row)
     return normalized
 
 
-def validate_jobs_final_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return _validate_rows(rows, JobsFinalRow, ("saved_at", "modified_at", "approved_at"))
+def validate_jobs_final_rows(
+    rows: list[dict[str, Any]],
+    preserve_fields: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    return _validate_rows(rows, JobsFinalRow, ("saved_at", "modified_at", "approved_at"), preserve_fields)
 
 
 def validate_shared_links_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

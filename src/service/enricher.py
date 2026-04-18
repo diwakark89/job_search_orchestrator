@@ -6,14 +6,23 @@ from typing import Any, Protocol
 
 from repository.supabase import SupabaseRepository
 
-from job_enricher.extractors import enrich_job_row
+from job_enricher.client_copilot import CopilotBatchExtractionInput, CopilotBatchExtractionResult
+from job_enricher.extractors import enrich_job_rows
 
 
 logger = logging.getLogger("uvicorn.error")
 
 
 class SupportsJobExtraction(Protocol):
+    @property
+    def batch_size(self) -> int: ...
+
     def extract_from_description(self, description: str) -> Any: ...
+
+    def extract_from_descriptions(
+        self,
+        items: list[CopilotBatchExtractionInput],
+    ) -> list[CopilotBatchExtractionResult]: ...
 
 
 @dataclass
@@ -29,6 +38,9 @@ class EnrichmentSummary:
     skipped: EnrichmentBucket
     failed: EnrichmentBucket
     errors: list[str]
+    copilot_batches_sent: int = 0
+    database_batches_sent: int = 0
+    database_rows_reported: int = 0
 
 
 def _fetch_scraped_jobs(repo: SupabaseRepository, limit: int) -> list[dict[str, Any]]:
@@ -65,6 +77,9 @@ def _build_summary(
     skipped_ids: list[str],
     failed_ids: list[str],
     errors: list[str],
+    copilot_batches_sent: int,
+    database_batches_sent: int,
+    database_rows_reported: int,
 ) -> EnrichmentSummary:
     return EnrichmentSummary(
         processed=EnrichmentBucket(count=len(processed_ids), ids=processed_ids),
@@ -72,38 +87,51 @@ def _build_summary(
         skipped=EnrichmentBucket(count=len(skipped_ids), ids=skipped_ids),
         failed=EnrichmentBucket(count=len(failed_ids), ids=failed_ids),
         errors=errors,
+        copilot_batches_sent=copilot_batches_sent,
+        database_batches_sent=database_batches_sent,
+        database_rows_reported=database_rows_reported,
     )
 
 
 def _extract_rows(
     rows: list[dict[str, Any]],
     copilot_client: SupportsJobExtraction,
-) -> tuple[list[dict[str, Any]], list[str], list[str], list[str], list[str]]:
+) -> tuple[list[dict[str, Any]], list[str], list[str], list[str], list[str], int]:
     enriched_rows: list[dict[str, Any]] = []
     success_ids: list[str] = []
     skipped_ids: list[str] = []
     failed_ids: list[str] = []
     errors: list[str] = []
+    copilot_batches_sent = 0
 
-    for row in rows:
-        row_id = str(row.get("id"))
-        logger.info("enricher processing id=%s", row_id)
-        enriched_row, error = enrich_job_row(copilot_client=copilot_client, job_row=row)
-        if error:
-            if "missing description" in error:
-                logger.warning("enricher skipped id=%s reason=%s", row_id, error)
-                skipped_ids.append(row_id)
-            else:
-                logger.error("enricher failed id=%s reason=%s", row_id, error)
-                errors.append(f"id={row_id}: {error}")
-                failed_ids.append(row_id)
-            continue
-        assert enriched_row is not None
-        logger.info("enricher extracted id=%s", row_id)
-        enriched_rows.append(enriched_row)
-        success_ids.append(str(enriched_row["id"]))
+    batch_size = max(getattr(copilot_client, "batch_size", 1), 1)
+    for start in range(0, len(rows), batch_size):
+        batch_rows = rows[start : start + batch_size]
+        batch_ids = [str(row.get("id")) for row in batch_rows]
+        logger.info("enricher processing batch size=%s ids=%s", len(batch_rows), batch_ids)
+        copilot_candidates = [row for row in batch_rows if str(row.get("id", "")).strip() and str(row.get("description", "")).strip()]
+        if copilot_candidates:
+            copilot_batches_sent += 1
 
-    return enriched_rows, success_ids, skipped_ids, failed_ids, errors
+        batch_results = enrich_job_rows(copilot_client=copilot_client, job_rows=batch_rows)
+        for batch_result in batch_results:
+            row_id = batch_result.row_id
+            if batch_result.error:
+                if batch_result.skipped:
+                    logger.warning("enricher skipped id=%s reason=%s", row_id, batch_result.error)
+                    skipped_ids.append(row_id)
+                else:
+                    logger.error("enricher failed id=%s reason=%s", row_id, batch_result.error)
+                    errors.append(f"id={row_id}: {batch_result.error}")
+                    failed_ids.append(row_id)
+                continue
+
+            assert batch_result.enriched_row is not None
+            logger.info("enricher extracted id=%s", row_id)
+            enriched_rows.append(batch_result.enriched_row)
+            success_ids.append(str(batch_result.enriched_row["id"]))
+
+    return enriched_rows, success_ids, skipped_ids, failed_ids, errors, copilot_batches_sent
 
 
 def _patch_enriched_rows(
@@ -113,37 +141,42 @@ def _patch_enriched_rows(
     failed_ids: list[str],
     errors: list[str],
     set_job_status_enriched: bool,
-) -> list[str]:
-    persisted_ids = list(success_ids)
+) -> tuple[list[str], int, int]:
+    if not enriched_rows:
+        return [], 0, 0
 
+    rows_to_upsert: list[dict[str, Any]] = []
     for enriched_row in enriched_rows:
-        row_id = str(enriched_row["id"])
-        payload = {key: value for key, value in enriched_row.items() if key != "id"}
+        payload = dict(enriched_row)
         if set_job_status_enriched:
             payload["job_status"] = "ENRICHED"
+        rows_to_upsert.append(payload)
 
+    logger.info(
+        "enricher persisting batch rows=%s set_job_status_enriched=%s",
+        len(rows_to_upsert),
+        set_job_status_enriched,
+    )
+    upsert_result = repo.upsert_rows(table="jobs_final", rows=rows_to_upsert, on_conflict="id")
+    if upsert_result.success:
         logger.info(
-            "enricher patching id=%s set_job_status_enriched=%s",
-            row_id,
-            set_job_status_enriched,
+            "enricher persisted batch rows=%s repo_row_count=%s",
+            len(rows_to_upsert),
+            upsert_result.row_count,
         )
+        return list(success_ids), 1, upsert_result.row_count
 
-        patch_result = repo.patch_rows(
-            table="jobs_final",
-            payload=payload,
-            filters={"id": row_id},
-        )
-        if patch_result.success:
-            logger.info("enricher patched id=%s", row_id)
-            continue
-
-        logger.error("enricher patch_failed id=%s", row_id)
-        errors.append(f"id={row_id}: failed to patch enrichment data")
+    logger.error(
+        "enricher persist_failed rows=%s repo_row_count=%s",
+        len(rows_to_upsert),
+        upsert_result.row_count,
+    )
+    for row in rows_to_upsert:
+        row_id = str(row["id"])
+        errors.append(f"id={row_id}: failed to persist enrichment data")
         failed_ids.append(row_id)
-        if row_id in persisted_ids:
-            persisted_ids.remove(row_id)
 
-    return persisted_ids
+    return [], 1, upsert_result.row_count
 
 
 def _enrich_rows(
@@ -156,10 +189,12 @@ def _enrich_rows(
     initial_failed_ids: list[str] | None = None,
     initial_errors: list[str] | None = None,
 ) -> EnrichmentSummary:
-    enriched_rows, success_ids, skipped_ids, failed_ids, errors = _extract_rows(
+    enriched_rows, success_ids, skipped_ids, failed_ids, errors, copilot_batches_sent = _extract_rows(
         rows=rows,
         copilot_client=copilot_client,
     )
+    database_batches_sent = 0
+    database_rows_reported = 0
 
     if initial_failed_ids:
         failed_ids = [*initial_failed_ids, *failed_ids]
@@ -181,9 +216,12 @@ def _enrich_rows(
             skipped_ids=skipped_ids,
             failed_ids=failed_ids,
             errors=errors,
+            copilot_batches_sent=copilot_batches_sent,
+            database_batches_sent=database_batches_sent,
+            database_rows_reported=database_rows_reported,
         )
 
-    persisted_ids = _patch_enriched_rows(
+    persisted_ids, database_batches_sent, database_rows_reported = _patch_enriched_rows(
         repo=repo,
         enriched_rows=enriched_rows,
         success_ids=success_ids,
@@ -200,6 +238,9 @@ def _enrich_rows(
         skipped_ids=skipped_ids,
         failed_ids=failed_ids,
         errors=errors,
+        copilot_batches_sent=copilot_batches_sent,
+        database_batches_sent=database_batches_sent,
+        database_rows_reported=database_rows_reported,
     )
 
 

@@ -190,6 +190,9 @@ def test_enricher_run_success(monkeypatch) -> None:
                     "skipped": type("Bucket", (), {"count": 1, "ids": ["id-3"]})(),
                     "failed": type("Bucket", (), {"count": 0, "ids": []})(),
                     "errors": [],
+                    "copilot_batches_sent": 2,
+                    "database_batches_sent": 1,
+                    "database_rows_reported": 2,
                 },
             )()
         ),
@@ -208,6 +211,9 @@ def test_enricher_run_success(monkeypatch) -> None:
     assert payload["skipped"]["ids"] == ["id-3"]
     assert payload["failed"]["count"] == 0
     assert payload["failed"]["ids"] == []
+    assert payload["copilot_batches_sent"] == 2
+    assert payload["database_batches_sent"] == 1
+    assert payload["database_rows_reported"] == 2
 
 
 def test_enricher_by_ids_success(monkeypatch) -> None:
@@ -228,6 +234,9 @@ def test_enricher_by_ids_success(monkeypatch) -> None:
                 "skipped": type("Bucket", (), {"count": 1, "ids": ["id-2"]})(),
                 "failed": type("Bucket", (), {"count": 1, "ids": ["id-3"]})(),
                 "errors": ["id=id-3: jobs_final row not found or soft-deleted"],
+                "copilot_batches_sent": 2,
+                "database_batches_sent": 0,
+                "database_rows_reported": 0,
             },
         )()
     )
@@ -243,6 +252,9 @@ def test_enricher_by_ids_success(monkeypatch) -> None:
     assert payload["skipped"]["count"] == 1
     assert payload["failed"]["count"] == 1
     assert payload["errors"] == ["id=id-3: jobs_final row not found or soft-deleted"]
+    assert payload["copilot_batches_sent"] == 2
+    assert payload["database_batches_sent"] == 0
+    assert payload["database_rows_reported"] == 0
     assert enrich_jobs_by_ids_mock.call_args.kwargs["ids"] == ["id-1", "id-2", "id-3"]
     assert enrich_jobs_by_ids_mock.call_args.kwargs["dry_run"] is False
 
@@ -265,6 +277,9 @@ def test_enricher_by_ids_supports_dry_run(monkeypatch) -> None:
                 "skipped": type("Bucket", (), {"count": 0, "ids": []})(),
                 "failed": type("Bucket", (), {"count": 0, "ids": []})(),
                 "errors": [],
+                "copilot_batches_sent": 1,
+                "database_batches_sent": 0,
+                "database_rows_reported": 0,
             },
         )()
     )
@@ -275,6 +290,9 @@ def test_enricher_by_ids_supports_dry_run(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["enriched"]["ids"] == ["id-1"]
+    assert response.json()["copilot_batches_sent"] == 1
+    assert response.json()["database_batches_sent"] == 0
+    assert response.json()["database_rows_reported"] == 0
     assert enrich_jobs_by_ids_mock.call_args.kwargs["dry_run"] is True
 
 

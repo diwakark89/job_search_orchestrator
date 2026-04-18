@@ -33,10 +33,16 @@ def test_cli_enrich_dry_run_success() -> None:
             skipped=EnrichmentBucket(count=1, ids=["id-4"]),
             failed=EnrichmentBucket(count=0, ids=[]),
             errors=[],
+            copilot_batches_sent=1,
+            database_batches_sent=0,
+            database_rows_reported=0,
         )
 
         result = runner.invoke(app, ["--limit", "4", "--dry-run"])
 
     assert result.exit_code == 0
     assert "processed=4" in result.stdout
+    assert "copilot_batches_sent=1" in result.stdout
+    assert "database_batches_sent=0" in result.stdout
+    assert "database_rows_reported=0" in result.stdout
     enrich_jobs_mock.assert_called_once()

@@ -144,7 +144,7 @@ def cmd_soft_delete(
     repo = _repo()
 
     if table == "jobs_final":
-        result = soft_delete_jobs_final(repo=repo, job_id=record_id, hard_delete=hard_delete)
+        result = soft_delete_jobs_final(repo=repo, record_id=record_id, hard_delete=hard_delete)
     else:
         raise typer.BadParameter("soft-delete only supports jobs_final.")
 
@@ -152,8 +152,8 @@ def cmd_soft_delete(
 
 
 @app.command("delete-jobs-final")
-def cmd_delete_jobs_final(job_id: str = typer.Option(..., "--id")) -> None:
-    result = delete_jobs_final_by_id(repo=_repo(), job_id=job_id)
+def cmd_delete_jobs_final(record_id: str = typer.Option(..., "--id")) -> None:
+    result = delete_jobs_final_by_id(repo=_repo(), record_id=record_id)
     _print_result(result)
 
 

@@ -77,6 +77,9 @@ def _stage_to_bucket_response(stage) -> EnrichmentSummaryResponse:
         skipped=EnrichmentCountResponse(count=0, ids=[]),
         failed=EnrichmentCountResponse(count=len(stage.errors), ids=[]),
         errors=stage.errors,
+        copilot_batches_sent=0,
+        database_batches_sent=0,
+        database_rows_reported=0,
     )
 
 
@@ -135,12 +138,19 @@ def pipeline_stage_enriched(payload: PipelineStageEnrichRequest) -> EnrichmentSu
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    copilot_batches_sent = getattr(result, "copilot_batches_sent", 0)
+    database_batches_sent = getattr(result, "database_batches_sent", 0)
+    database_rows_reported = getattr(result, "database_rows_reported", 0)
+
     return EnrichmentSummaryResponse(
         processed=EnrichmentCountResponse(count=result.processed.count, ids=result.processed.ids),
         enriched=EnrichmentCountResponse(count=result.enriched.count, ids=result.enriched.ids),
         skipped=EnrichmentCountResponse(count=result.skipped.count, ids=result.skipped.ids),
         failed=EnrichmentCountResponse(count=result.failed.count, ids=result.failed.ids),
         errors=result.errors,
+        copilot_batches_sent=copilot_batches_sent,
+        database_batches_sent=database_batches_sent,
+        database_rows_reported=database_rows_reported,
     )
 
 

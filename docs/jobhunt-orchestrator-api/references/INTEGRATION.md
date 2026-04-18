@@ -44,7 +44,7 @@ Use these surfaces instead:
 
 | URL slug | Database table | Primary key |
 | --- | --- | --- |
-| `jobs-final` | `jobs_final` | `job_id` |
+| `jobs-final` | `jobs_final` | `id` |
 | `shared-links` | `shared_links` | `id` |
 
 ## Setup
@@ -117,7 +117,7 @@ Success response:
 {
   "tables": ["jobs_final", "shared_links"],
   "default_conflict_keys": {
-    "jobs_final": "job_id",
+    "jobs_final": "id",
     "shared_links": "url"
   }
 }
@@ -131,7 +131,7 @@ Success response:
 {
   "rows": [
     {
-      "job_id": "550e8400-e29b-41d4-a716-446655440000",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "company_name": "Acme Corp",
       "job_status": "APPLIED"
     }
@@ -241,13 +241,13 @@ The examples below show the supported write path for every table.
 ### `jobs-final`
 
 ```bash
-curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/json" -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
+curl -X POST http://localhost:8000/db/jobs-final -H "Content-Type: application/json" -d '{"rows":[{"id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
 
 ### `shared-links`
 
 ```bash
-curl -X POST http://localhost:8000/db/shared-links -H "Content-Type: application/json" -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent","status":"Pending"}]}'
+curl -X POST http://localhost:8000/db/shared-links -H "Content-Type: application/json" -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent"}]}'
 ```
 
 Orchestration endpoints:
@@ -303,7 +303,7 @@ from repository.supabase import SupabaseRepository
 from service.tables import upsert_jobs_final, get_metrics
 
 repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-upsert_jobs_final(repo, [{"job_id": "550e8400-e29b-41d4-a716-446655440000"}])
+upsert_jobs_final(repo, [{"id": "550e8400-e29b-41d4-a716-446655440000"}])
 metrics = get_metrics(repo)
 print(metrics)  # {"status_counts": {"SAVED": 10, ...}, "total": 10}
 ```

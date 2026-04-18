@@ -37,12 +37,19 @@ def run_enricher(payload: EnricherRunRequest) -> EnrichmentSummaryResponse:
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    copilot_batches_sent = getattr(summary, "copilot_batches_sent", 0)
+    database_batches_sent = getattr(summary, "database_batches_sent", 0)
+    database_rows_reported = getattr(summary, "database_rows_reported", 0)
+
     return EnrichmentSummaryResponse(
         processed=EnrichmentCountResponse(count=summary.processed.count, ids=summary.processed.ids),
         enriched=EnrichmentCountResponse(count=summary.enriched.count, ids=summary.enriched.ids),
         skipped=EnrichmentCountResponse(count=summary.skipped.count, ids=summary.skipped.ids),
         failed=EnrichmentCountResponse(count=summary.failed.count, ids=summary.failed.ids),
         errors=summary.errors,
+        copilot_batches_sent=copilot_batches_sent,
+        database_batches_sent=database_batches_sent,
+        database_rows_reported=database_rows_reported,
     )
 
 
@@ -74,13 +81,20 @@ def run_enricher_by_ids(
         logger.exception("POST /enricher/by-ids runtime_error=%s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    copilot_batches_sent = getattr(summary, "copilot_batches_sent", 0)
+    database_batches_sent = getattr(summary, "database_batches_sent", 0)
+    database_rows_reported = getattr(summary, "database_rows_reported", 0)
+
     logger.info(
-        "POST /enricher/by-ids completed processed=%s enriched=%s skipped=%s failed=%s errors=%s",
+        "POST /enricher/by-ids completed processed=%s enriched=%s skipped=%s failed=%s errors=%s copilot_batches_sent=%s database_batches_sent=%s database_rows_reported=%s",
         summary.processed.count,
         summary.enriched.count,
         summary.skipped.count,
         summary.failed.count,
         len(summary.errors),
+        copilot_batches_sent,
+        database_batches_sent,
+        database_rows_reported,
     )
 
     return EnrichmentSummaryResponse(
@@ -89,4 +103,7 @@ def run_enricher_by_ids(
         skipped=EnrichmentCountResponse(count=summary.skipped.count, ids=summary.skipped.ids),
         failed=EnrichmentCountResponse(count=summary.failed.count, ids=summary.failed.ids),
         errors=summary.errors,
+        copilot_batches_sent=copilot_batches_sent,
+        database_batches_sent=database_batches_sent,
+        database_rows_reported=database_rows_reported,
     )
