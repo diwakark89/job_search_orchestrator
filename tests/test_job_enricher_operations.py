@@ -258,3 +258,33 @@ def test_enrich_jobs_by_ids_can_set_job_status_enriched() -> None:
         "work_mode": "remote",
         "job_status": "ENRICHED",
     }]
+
+
+def test_enrich_jobs_by_ids_can_set_custom_job_status() -> None:
+    repo = MagicMock()
+    client = _fake_client()
+    repo.select_rows.return_value = _ok(
+        "jobs_final",
+        "select",
+        [{"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
+    )
+    repo.upsert_rows.return_value = OperationResult(True, 204, "jobs_final", "upsert", 1)
+
+    summary = enrich_jobs_by_ids(
+        repo=repo,
+        copilot_client=client,
+        ids=["id-1"],
+        set_job_status_enriched=True,
+        target_job_status="SAVED",
+    )
+
+    assert summary.enriched.count == 1
+    assert summary.enriched.ids == ["id-1"]
+    repo.upsert_rows.assert_called_once()
+    assert repo.upsert_rows.call_args.kwargs["rows"] == [{
+        "id": "id-1",
+        "tech_stack": ["Python", "PostgreSQL"],
+        "experience_level": "Senior",
+        "work_mode": "remote",
+        "job_status": "SAVED",
+    }]

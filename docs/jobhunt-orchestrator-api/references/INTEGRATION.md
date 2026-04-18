@@ -252,11 +252,73 @@ curl -X POST http://localhost:8000/db/shared-links -H "Content-Type: application
 
 Orchestration endpoints:
 
+- `POST /pipeline/submit`
 - `POST /enricher/run`
 - `POST /pipeline/run`
 - `POST /pipeline/stage/ingest`
 - `POST /pipeline/stage/enriched`
 - `GET /pipeline/metrics`
+
+### POST /pipeline/submit
+
+Accepts raw job listings, validates per-row, upserts valid rows into `jobs_final` as `SCRAPED`, creates matching `shared_links`, and queues background enrichment. Returns `202` immediately.
+
+Request body:
+
+```json
+{
+  "jobs": [
+    {
+      "company_name": "Acme Corp",
+      "role_title": "Senior Engineer",
+      "job_url": "https://example.com/jobs/1",
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
+    }
+  ]
+}
+```
+
+Success response (`202`):
+
+```json
+{
+  "submitted_row_count": 1,
+  "accepted": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
+  "queued": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
+  "rejected_row_indexes": [],
+  "errors": [],
+  "jobs_final_row_count": 1,
+  "shared_links_row_count": 1
+}
+```
+
+Common error (`400`):
+
+```json
+{ "detail": "No valid jobs submitted. row[0]: job_url is required." }
+```
+
+Notes:
+
+- `job_type` canonical values: `fulltime`, `parttime`, `internship`, `contract`, `temporary`, `other`. Unmatched → `other`.
+- `work_mode` canonical values: `remote`, `hybrid`, `on-site`, `other`. Unmatched → `other`.
+- Successful background enrichment updates accepted rows to `job_status=SAVED`.
+- Background enrichment is non-durable (in-process thread). Work is lost if the API restarts.
+- Logs include a `submit_request_id` UUID correlating route, background worker, and enricher entries.
+
+## Which Endpoint to Use
+
+| Goal | Endpoint | Notes |
+| --- | --- | --- |
+| Ingest raw jobs + auto enrich | `POST /pipeline/submit` | 202 async; background enrichment; `shared_links` created |
+| Ingest + enrich synchronously | `POST /pipeline/run` | Blocking; returns combined stage results |
+| Ingest only (no enrichment) | `POST /pipeline/stage/ingest` | Rows written as `SCRAPED`; no enrichment |
+| Enrich existing `SCRAPED` rows | `POST /pipeline/stage/enriched` | Picks up by limit |
+| Enrich all `SCRAPED` rows | `POST /enricher/run` | Same as above via enricher surface |
+| Enrich a specific set of ids | `POST /enricher/by-ids` | Targeted; pass id list explicitly |
+| Direct table CRUD | `GET/POST/PATCH/DELETE /db/jobs-final` | No enrichment logic |
 
 ## CLI
 

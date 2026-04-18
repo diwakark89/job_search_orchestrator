@@ -141,6 +141,8 @@ def _patch_enriched_rows(
     failed_ids: list[str],
     errors: list[str],
     set_job_status_enriched: bool,
+    target_job_status: str,
+    submit_request_id: str | None = None,
 ) -> tuple[list[str], int, int]:
     if not enriched_rows:
         return [], 0, 0
@@ -149,27 +151,45 @@ def _patch_enriched_rows(
     for enriched_row in enriched_rows:
         payload = dict(enriched_row)
         if set_job_status_enriched:
-            payload["job_status"] = "ENRICHED"
+            payload["job_status"] = target_job_status
         rows_to_upsert.append(payload)
 
+    if set_job_status_enriched:
+        enriched_ids_for_patch = [str(r.get("id", "")) for r in rows_to_upsert]
+        logger.info(
+            "enricher setting job_status=%s for %s rows submit_request_id=%s",
+            target_job_status,
+            len(rows_to_upsert),
+            submit_request_id,
+        )
+        logger.debug(
+            "enricher job_status=%s ids submit_request_id=%s ids=%s",
+            target_job_status,
+            submit_request_id,
+            enriched_ids_for_patch,
+        )
+
     logger.info(
-        "enricher persisting batch rows=%s set_job_status_enriched=%s",
+        "enricher persisting batch rows=%s set_job_status_enriched=%s submit_request_id=%s",
         len(rows_to_upsert),
         set_job_status_enriched,
+        submit_request_id,
     )
     upsert_result = repo.upsert_rows(table="jobs_final", rows=rows_to_upsert, on_conflict="id")
     if upsert_result.success:
         logger.info(
-            "enricher persisted batch rows=%s repo_row_count=%s",
+            "enricher persisted batch rows=%s repo_row_count=%s submit_request_id=%s",
             len(rows_to_upsert),
             upsert_result.row_count,
+            submit_request_id,
         )
         return list(success_ids), 1, upsert_result.row_count
 
     logger.error(
-        "enricher persist_failed rows=%s repo_row_count=%s",
+        "enricher persist_failed rows=%s repo_row_count=%s submit_request_id=%s",
         len(rows_to_upsert),
         upsert_result.row_count,
+        submit_request_id,
     )
     for row in rows_to_upsert:
         row_id = str(row["id"])
@@ -186,8 +206,10 @@ def _enrich_rows(
     processed_ids: list[str],
     dry_run: bool,
     set_job_status_enriched: bool,
+    target_job_status: str,
     initial_failed_ids: list[str] | None = None,
     initial_errors: list[str] | None = None,
+    submit_request_id: str | None = None,
 ) -> EnrichmentSummary:
     enriched_rows, success_ids, skipped_ids, failed_ids, errors, copilot_batches_sent = _extract_rows(
         rows=rows,
@@ -228,6 +250,8 @@ def _enrich_rows(
         failed_ids=failed_ids,
         errors=errors,
         set_job_status_enriched=set_job_status_enriched,
+        target_job_status=target_job_status,
+        submit_request_id=submit_request_id,
     )
 
     logger.info("enricher patched %s jobs_final rows", len(persisted_ids))
@@ -261,6 +285,7 @@ def enrich_jobs(
         processed_ids=pending_ids,
         dry_run=dry_run,
         set_job_status_enriched=True,
+        target_job_status="ENRICHED",
     )
 
 
@@ -270,8 +295,15 @@ def enrich_jobs_by_ids(
     ids: list[str],
     dry_run: bool = False,
     set_job_status_enriched: bool = False,
+    target_job_status: str = "ENRICHED",
+    submit_request_id: str | None = None,
 ) -> EnrichmentSummary:
-    logger.info("enricher by_ids requested_ids=%s dry_run=%s", len(ids), dry_run)
+    logger.info(
+        "enricher by_ids requested_ids=%s dry_run=%s submit_request_id=%s",
+        len(ids),
+        dry_run,
+        submit_request_id,
+    )
 
     requested_ids = [row_id.strip() for row_id in ids if row_id and row_id.strip()]
     if not requested_ids:
@@ -314,6 +346,8 @@ def enrich_jobs_by_ids(
         processed_ids=unique_ids,
         dry_run=dry_run,
         set_job_status_enriched=set_job_status_enriched,
+        target_job_status=target_job_status,
         initial_failed_ids=missing_ids,
         initial_errors=missing_errors,
+        submit_request_id=submit_request_id,
     )

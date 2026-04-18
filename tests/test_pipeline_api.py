@@ -99,12 +99,12 @@ def test_pipeline_submit_success_queues_only_submitted_ids(monkeypatch) -> None:
     assert payload["errors"] == ["row[2]: job_url is required."]
     assert payload["jobs_final_row_count"] == 2
     assert payload["shared_links_row_count"] == 2
-    thread_factory.assert_called_once_with(
-        target=pipeline_route._run_submitted_jobs_enrichment,
-        args=(["id-1", "id-2"],),
-        name="pipeline-submit-enrichment",
-        daemon=True,
-    )
+    call_kwargs = thread_factory.call_args
+    assert call_kwargs.kwargs["target"] == pipeline_route._run_submitted_jobs_enrichment
+    assert call_kwargs.kwargs["args"][0] == ["id-1", "id-2"]
+    assert isinstance(call_kwargs.kwargs["args"][1], str)  # submit_request_id UUID
+    assert call_kwargs.kwargs["name"] == "pipeline-submit-enrichment"
+    assert call_kwargs.kwargs["daemon"] is True
     fake_thread.start.assert_called_once()
 
 
@@ -144,6 +144,40 @@ def test_pipeline_submit_runtime_error(monkeypatch) -> None:
 
     assert response.status_code == 502
     assert "shared links down" in response.json()["detail"]
+
+
+def test_pipeline_submit_background_enrichment_sets_saved_status(monkeypatch) -> None:
+    import api.routes.pipeline as pipeline_route
+
+    monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "CopilotClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "load_copilot_config", MagicMock(return_value=object()))
+    enrich_jobs_by_ids_mock = MagicMock(
+        return_value=type(
+            "Summary",
+            (),
+            {
+                "processed": type("Bucket", (), {"count": 1, "ids": ["id-1"]})(),
+                "enriched": type("Bucket", (), {"count": 1, "ids": ["id-1"]})(),
+                "skipped": type("Bucket", (), {"count": 0, "ids": []})(),
+                "failed": type("Bucket", (), {"count": 0, "ids": []})(),
+                "errors": [],
+                "copilot_batches_sent": 1,
+                "database_batches_sent": 1,
+                "database_rows_reported": 1,
+            },
+        )()
+    )
+    monkeypatch.setattr(pipeline_route, "enrich_jobs_by_ids", enrich_jobs_by_ids_mock)
+
+    pipeline_route._run_submitted_jobs_enrichment(ids=["id-1"], submit_request_id="req-1")
+
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["ids"] == ["id-1"]
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["set_job_status_enriched"] is True
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["target_job_status"] == "SAVED"
+    assert enrich_jobs_by_ids_mock.call_args.kwargs["submit_request_id"] == "req-1"
 
 
 def test_pipeline_run_stage_failure_includes_failed_row_ids(monkeypatch) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import uuid
 
 from fastapi import APIRouter, HTTPException
 
@@ -90,26 +91,67 @@ def _stage_to_bucket_response(stage) -> EnrichmentSummaryResponse:
     )
 
 
-def _run_submitted_jobs_enrichment(ids: list[str]) -> None:
+def _run_submitted_jobs_enrichment(ids: list[str], submit_request_id: str) -> None:
+    logger.info(
+        "pipeline submit background started submit_request_id=%s ids_count=%s",
+        submit_request_id,
+        len(ids),
+    )
+    logger.debug(
+        "pipeline submit background ids submit_request_id=%s ids=%s",
+        submit_request_id,
+        ids,
+    )
     try:
         repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+        logger.debug("pipeline submit background repo_init submit_request_id=%s", submit_request_id)
         copilot_client = CopilotClient(config=load_copilot_config())
+        logger.debug("pipeline submit background copilot_init submit_request_id=%s", submit_request_id)
+        logger.info(
+            "pipeline submit background calling enrich_jobs_by_ids submit_request_id=%s ids_count=%s set_job_status_enriched=True target_job_status=SAVED",
+            submit_request_id,
+            len(ids),
+        )
         summary = enrich_jobs_by_ids(
             repo=repo,
             copilot_client=copilot_client,
             ids=ids,
             set_job_status_enriched=True,
+            target_job_status="SAVED",
+            submit_request_id=submit_request_id,
         )
         logger.info(
-            "pipeline submit background enrichment completed ids_count=%s enriched=%s skipped=%s failed=%s errors=%s",
+            "pipeline submit background completed submit_request_id=%s ids_count=%s enriched=%s skipped=%s failed=%s errors=%s",
+            submit_request_id,
             len(ids),
             summary.enriched.count,
             summary.skipped.count,
             summary.failed.count,
             len(summary.errors),
         )
+        logger.debug(
+            "pipeline submit background enriched_ids submit_request_id=%s ids=%s",
+            submit_request_id,
+            summary.enriched.ids,
+        )
+        for job_id in summary.enriched.ids:
+            logger.info(
+                "pipeline submit background saved_job submit_request_id=%s id=%s",
+                submit_request_id,
+                job_id,
+            )
+        if summary.failed.ids:
+            logger.debug(
+                "pipeline submit background failed_ids submit_request_id=%s ids=%s",
+                submit_request_id,
+                summary.failed.ids,
+            )
     except Exception:  # noqa: BLE001
-        logger.exception("pipeline submit background enrichment failed ids=%s", ids)
+        logger.exception(
+            "pipeline submit background enrichment failed submit_request_id=%s ids=%s",
+            submit_request_id,
+            ids,
+        )
 
 
 @router.post("/run", response_model=PipelineResultResponse)
@@ -140,27 +182,63 @@ def pipeline_run(payload: PipelineRunRequest) -> PipelineResultResponse:
 
 @router.post("/submit", response_model=PipelineSubmitResponse, status_code=202)
 def pipeline_submit(payload: PipelineSubmitRequest) -> PipelineSubmitResponse:
+    submit_request_id = str(uuid.uuid4())
+    logger.info(
+        "POST /pipeline/submit received submit_request_id=%s submitted_row_count=%s",
+        submit_request_id,
+        len(payload.jobs),
+    )
+    logger.debug(
+        "POST /pipeline/submit job_urls submit_request_id=%s urls=%s",
+        submit_request_id,
+        [row.get("job_url") for row in payload.jobs if isinstance(row, dict)],
+    )
+
     try:
         repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
         result = submit_jobs_for_enrichment(repo=repo, rows=payload.jobs)
     except ValueError as exc:
+        logger.warning(
+            "POST /pipeline/submit validation_error submit_request_id=%s detail=%s",
+            submit_request_id,
+            str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
+        logger.error(
+            "POST /pipeline/submit runtime_error submit_request_id=%s detail=%s",
+            submit_request_id,
+            str(exc),
+        )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    logger.info(
+        "POST /pipeline/submit service_result submit_request_id=%s accepted=%s rejected=%s jobs_final_rows=%s shared_links_rows=%s",
+        submit_request_id,
+        len(result.accepted_ids),
+        len(result.rejected_row_indexes),
+        result.jobs_final_row_count,
+        result.shared_links_row_count,
+    )
+    logger.debug(
+        "POST /pipeline/submit accepted_ids submit_request_id=%s ids=%s",
+        submit_request_id,
+        result.accepted_ids,
+    )
 
     enrichment_thread = threading.Thread(
         target=_run_submitted_jobs_enrichment,
-        args=(list(result.accepted_ids),),
+        args=(list(result.accepted_ids), submit_request_id),
         name="pipeline-submit-enrichment",
         daemon=True,
     )
     enrichment_thread.start()
 
     logger.info(
-        "POST /pipeline/submit queued ids_count=%s rejected=%s shared_links=%s",
+        "POST /pipeline/submit queued_background submit_request_id=%s queued_ids_count=%s thread=%s",
+        submit_request_id,
         len(result.accepted_ids),
-        len(result.rejected_row_indexes),
-        result.shared_links_row_count,
+        enrichment_thread.name,
     )
 
     return PipelineSubmitResponse(

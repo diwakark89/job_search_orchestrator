@@ -763,7 +763,7 @@ Notes:
 - `job_type` canonical values are `fulltime`, `parttime`, `internship`, `contract`, `temporary`, and `other`. Unmatched input is stored as `other`.
 - `work_mode` canonical values are `remote`, `hybrid`, `on-site`, and `other`. Unmatched input is stored as `other`.
 - Background enrichment is scoped only to ids accepted in the same request.
-- Successful background enrichment updates those rows to `job_status=ENRICHED`.
+- Successful background enrichment updates those rows to `job_status=SAVED`.
 - The background worker is in-process and non-durable.
 
 #### POST /pipeline/run

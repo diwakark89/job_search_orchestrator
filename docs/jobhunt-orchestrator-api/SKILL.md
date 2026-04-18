@@ -77,7 +77,7 @@ Supported table slugs:
 
 | Slug           | Table          | Primary key |
 | -------------- | -------------- | ----------- |
-| `jobs-final`   | `jobs_final`   | `id`    |
+| `jobs-final`   | `jobs_final`   | `id`        |
 | `shared-links` | `shared_links` | `id`        |
 
 Query behavior for `GET /db/{table}`:
@@ -240,6 +240,83 @@ Constraints:
 
 - soft delete is supported only for `jobs-final`
 - full request and response coverage lives in `docs/INTEGRATION.md`
+
+## POST /pipeline/submit — Async Submit Flow
+
+Use `/pipeline/submit` when you have raw job listings to ingest **and** want background enrichment to run automatically without waiting. The endpoint returns `202` immediately after queueing.
+
+**When to use it:**
+
+- Ingesting new scraped jobs from a mobile share or automation and enriching them in the background
+- You want a fire-and-forget pattern: submit jobs, get ids back, let enrichment happen asynchronously
+- You want `shared_links` rows created automatically alongside job records
+
+**What it does:**
+
+1. Validates each row independently; invalid rows are rejected per-row
+2. Upserts valid rows into `jobs_final` with `job_status=SCRAPED`, deduplicated by `job_url`
+3. Upserts matching `shared_links` rows
+4. Queues background enrichment **only** for accepted ids
+5. Background worker sets `job_status=SAVED` on success
+
+Request body:
+
+```json
+{
+  "jobs": [
+    {
+      "company_name": "Acme Corp",
+      "role_title": "Senior Engineer",
+      "job_url": "https://example.com/jobs/1",
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
+    },
+    {
+      "bad_field": "x"
+    }
+  ]
+}
+```
+
+Success response (`202`):
+
+```json
+{
+  "submitted_row_count": 2,
+  "accepted": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
+  "queued": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
+  "rejected_row_indexes": [1],
+  "errors": ["row[1]: Extra inputs are not permitted"],
+  "jobs_final_row_count": 1,
+  "shared_links_row_count": 1
+}
+```
+
+Common error (`400`) when every row is invalid:
+
+```json
+{ "detail": "No valid jobs submitted. row[0]: job_url is required." }
+```
+
+Notes:
+
+- `job_type` canonical values: `fulltime`, `parttime`, `internship`, `contract`, `temporary`, `other`. Unmatched input → `other`.
+- `work_mode` canonical values: `remote`, `hybrid`, `on-site`, `other`. Unmatched input → `other`.
+- Background enrichment is in-process and non-durable. If the API restarts, queued work is lost.
+- Logs include a per-request `submit_request_id` UUID that correlates route → background worker → enricher entries.
+
+## Which Endpoint to Use
+
+| Goal                                               | Use endpoint                           | Notes                                                        |
+| -------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| Ingest new raw jobs and enrich automatically       | `POST /pipeline/submit`                | Returns 202; background enrichment; `shared_links` created   |
+| Ingest + enrich synchronously in one blocking call | `POST /pipeline/run`                   | Waits for full pipeline; returns combined stage results      |
+| Ingest jobs only (no enrichment)                   | `POST /pipeline/stage/ingest`          | Writes rows as `SCRAPED`; no enrichment triggered            |
+| Enrich `SCRAPED` rows already in the DB            | `POST /pipeline/stage/enriched`        | Picks up existing `SCRAPED` rows; enriches by limit          |
+| Trigger enrichment for all `SCRAPED` rows          | `POST /enricher/run`                   | Same as stage/enriched but via enricher surface              |
+| Enrich a specific set of ids on demand             | `POST /enricher/by-ids`                | Targeted enrichment; set `set_job_status_enriched` as needed |
+| Read, update, or delete individual records         | `GET/POST/PATCH/DELETE /db/jobs-final` | Direct table CRUD; no enrichment logic                       |
 
 ## CLI
 
