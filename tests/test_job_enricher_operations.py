@@ -229,3 +229,32 @@ def test_enrich_jobs_by_ids_dry_run_skips_patch() -> None:
     assert summary.database_batches_sent == 0
     assert summary.database_rows_reported == 0
     repo.upsert_rows.assert_not_called()
+
+
+def test_enrich_jobs_by_ids_can_set_job_status_enriched() -> None:
+    repo = MagicMock()
+    client = _fake_client()
+    repo.select_rows.return_value = _ok(
+        "jobs_final",
+        "select",
+        [{"id": "id-1", "description": "good description", "job_status": "SCRAPED", "is_deleted": False}],
+    )
+    repo.upsert_rows.return_value = OperationResult(True, 204, "jobs_final", "upsert", 1)
+
+    summary = enrich_jobs_by_ids(
+        repo=repo,
+        copilot_client=client,
+        ids=["id-1"],
+        set_job_status_enriched=True,
+    )
+
+    assert summary.enriched.count == 1
+    assert summary.enriched.ids == ["id-1"]
+    repo.upsert_rows.assert_called_once()
+    assert repo.upsert_rows.call_args.kwargs["rows"] == [{
+        "id": "id-1",
+        "tech_stack": ["Python", "PostgreSQL"],
+        "experience_level": "Senior",
+        "remote_type": "Remote",
+        "job_status": "ENRICHED",
+    }]

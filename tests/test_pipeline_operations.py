@@ -89,6 +89,141 @@ def test_stage_ingest_upsert_failure() -> None:
     assert "Server error" in result.errors[-1]
 
 
+def test_submit_jobs_for_enrichment_success() -> None:
+    repo = MagicMock()
+    repo.upsert_rows.side_effect = [
+        OperationResult(True, 201, "jobs_final", "upsert", 2),
+        OperationResult(True, 201, "shared_links", "upsert", 2),
+    ]
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        0,
+        data=[
+            {"id": "id-1", "job_url": "https://example.com/jobs/0"},
+            {"id": "id-2", "job_url": "https://example.com/jobs/1"},
+        ],
+    )
+
+    from service.pipeline import submit_jobs_for_enrichment
+
+    result = submit_jobs_for_enrichment(repo=repo, rows=_make_valid_rows(2))
+
+    assert result.submitted_row_count == 2
+    assert result.accepted_ids == ["id-1", "id-2"]
+    assert result.accepted_urls == ["https://example.com/jobs/0", "https://example.com/jobs/1"]
+    assert result.rejected_row_indexes == []
+    assert result.errors == []
+    assert result.jobs_final_row_count == 2
+    assert result.shared_links_row_count == 2
+    assert repo.upsert_rows.call_args_list[0].kwargs == {
+        "table": "jobs_final",
+        "rows": [
+            {
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/0",
+                "description": "Build APIs.",
+                "match_score": 90,
+                "job_status": "SCRAPED",
+                "is_deleted": False,
+                "language": "English",
+            },
+            {
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/1",
+                "description": "Build APIs.",
+                "match_score": 90,
+                "job_status": "SCRAPED",
+                "is_deleted": False,
+                "language": "English",
+            },
+        ],
+        "on_conflict": "job_url",
+    }
+    assert repo.upsert_rows.call_args_list[1].kwargs == {
+        "table": "shared_links",
+        "rows": [{"url": "https://example.com/jobs/0"}, {"url": "https://example.com/jobs/1"}],
+        "on_conflict": "url",
+    }
+
+
+def test_submit_jobs_for_enrichment_partial_validation_continues() -> None:
+    repo = MagicMock()
+    repo.upsert_rows.side_effect = [
+        OperationResult(True, 201, "jobs_final", "upsert", 1),
+        OperationResult(True, 201, "shared_links", "upsert", 1),
+    ]
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        0,
+        data=[{"id": "id-1", "job_url": "https://example.com/jobs/1"}],
+    )
+
+    from service.pipeline import submit_jobs_for_enrichment
+
+    result = submit_jobs_for_enrichment(repo=repo, rows=[_VALID_ROW, {"bad_field": "x"}])
+
+    assert result.submitted_row_count == 2
+    assert result.accepted_ids == ["id-1"]
+    assert result.accepted_urls == ["https://example.com/jobs/1"]
+    assert result.rejected_row_indexes == [1]
+    assert len(result.errors) == 1
+    assert "row[1]" in result.errors[0]
+
+
+def test_submit_jobs_for_enrichment_requires_valid_job() -> None:
+    from service.pipeline import submit_jobs_for_enrichment
+
+    with pytest.raises(ValueError, match="No valid jobs submitted"):
+        submit_jobs_for_enrichment(repo=MagicMock(), rows=[{"job_url": "   "}, {"bad_field": "x"}])
+
+
+def test_submit_jobs_for_enrichment_fails_when_select_misses_url() -> None:
+    repo = MagicMock()
+    repo.upsert_rows.return_value = OperationResult(True, 201, "jobs_final", "upsert", 1)
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        0,
+        data=[],
+    )
+
+    from service.pipeline import submit_jobs_for_enrichment
+
+    with pytest.raises(RuntimeError, match="rows were not found in jobs_final"):
+        submit_jobs_for_enrichment(repo=repo, rows=[_VALID_ROW])
+
+
+def test_submit_jobs_for_enrichment_fails_when_shared_links_upsert_fails() -> None:
+    repo = MagicMock()
+    repo.upsert_rows.side_effect = [
+        OperationResult(True, 201, "jobs_final", "upsert", 1),
+        OperationResult(False, 500, "shared_links", "upsert", 0, error="shared links down"),
+    ]
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "jobs_final",
+        "select",
+        0,
+        data=[{"id": "id-1", "job_url": "https://example.com/jobs/1"}],
+    )
+
+    from service.pipeline import submit_jobs_for_enrichment
+
+    with pytest.raises(RuntimeError, match="shared links down"):
+        submit_jobs_for_enrichment(repo=repo, rows=[_VALID_ROW])
+
+
 # ---------------------------------------------------------------------------
 # Stage 2: enrich
 # ---------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import re
+import threading
 
 from fastapi import APIRouter, HTTPException
 
@@ -10,6 +12,8 @@ from api.models import (
     MetricsResponse,
     PipelineResultResponse,
     PipelineRunRequest,
+    PipelineSubmitRequest,
+    PipelineSubmitResponse,
     PipelineStageEnrichRequest,
     PipelineStageIngestRequest,
     StageResultResponse,
@@ -19,14 +23,17 @@ from common.config import load_config
 from job_enricher.client_copilot import CopilotClient
 from job_enricher.config import load_copilot_config
 from repository.supabase import SupabaseRepository
+from service.enricher import enrich_jobs_by_ids
 from service.pipeline import (
     run_pipeline,
     run_stage_enriched_detailed,
     run_stage_ingest,
+    submit_jobs_for_enrichment,
 )
 from service.tables import get_metrics
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
+logger = logging.getLogger("uvicorn.error")
 
 
 def _extract_failed_ids(errors: list[str]) -> list[str]:
@@ -83,6 +90,28 @@ def _stage_to_bucket_response(stage) -> EnrichmentSummaryResponse:
     )
 
 
+def _run_submitted_jobs_enrichment(ids: list[str]) -> None:
+    try:
+        repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+        copilot_client = CopilotClient(config=load_copilot_config())
+        summary = enrich_jobs_by_ids(
+            repo=repo,
+            copilot_client=copilot_client,
+            ids=ids,
+            set_job_status_enriched=True,
+        )
+        logger.info(
+            "pipeline submit background enrichment completed ids_count=%s enriched=%s skipped=%s failed=%s errors=%s",
+            len(ids),
+            summary.enriched.count,
+            summary.skipped.count,
+            summary.failed.count,
+            len(summary.errors),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("pipeline submit background enrichment failed ids=%s", ids)
+
+
 @router.post("/run", response_model=PipelineResultResponse)
 def pipeline_run(payload: PipelineRunRequest) -> PipelineResultResponse:
     try:
@@ -106,6 +135,42 @@ def pipeline_run(payload: PipelineRunRequest) -> PipelineResultResponse:
         total_processed=result.total_processed,
         total_enriched=result.total_enriched,
         total_failed=result.total_failed,
+    )
+
+
+@router.post("/submit", response_model=PipelineSubmitResponse, status_code=202)
+def pipeline_submit(payload: PipelineSubmitRequest) -> PipelineSubmitResponse:
+    try:
+        repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+        result = submit_jobs_for_enrichment(repo=repo, rows=payload.rows)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    enrichment_thread = threading.Thread(
+        target=_run_submitted_jobs_enrichment,
+        args=(list(result.accepted_ids),),
+        name="pipeline-submit-enrichment",
+        daemon=True,
+    )
+    enrichment_thread.start()
+
+    logger.info(
+        "POST /pipeline/submit queued ids_count=%s rejected=%s shared_links=%s",
+        len(result.accepted_ids),
+        len(result.rejected_row_indexes),
+        result.shared_links_row_count,
+    )
+
+    return PipelineSubmitResponse(
+        submitted_row_count=result.submitted_row_count,
+        accepted=EnrichmentCountResponse(count=len(result.accepted_ids), ids=result.accepted_ids),
+        queued=EnrichmentCountResponse(count=len(result.accepted_ids), ids=result.accepted_ids),
+        rejected_row_indexes=result.rejected_row_indexes,
+        errors=result.errors,
+        jobs_final_row_count=result.jobs_final_row_count,
+        shared_links_row_count=result.shared_links_row_count,
     )
 
 

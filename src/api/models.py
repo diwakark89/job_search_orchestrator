@@ -99,6 +99,20 @@ class PipelineRunRequest(BaseModel):
     dry_run: bool = False
 
 
+class PipelineSubmitRequest(BaseModel):
+    rows: list[dict[str, Any]]
+
+
+class PipelineSubmitResponse(BaseModel):
+    submitted_row_count: int
+    accepted: EnrichmentCountResponse
+    queued: EnrichmentCountResponse
+    rejected_row_indexes: list[int]
+    errors: list[str]
+    jobs_final_row_count: int
+    shared_links_row_count: int
+
+
 class PipelineStageIngestRequest(BaseModel):
     rows: list[dict[str, Any]]
 

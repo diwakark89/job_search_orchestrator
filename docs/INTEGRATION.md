@@ -175,11 +175,13 @@ pip install -r requirements.txt
 | Get metrics | n/a | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
 | Enricher | `enricher enrich` | `service.enricher.enrich_jobs` | `jobs_final` | `POST /enricher/run` | Reads SCRAPED rows, patches ENRICHED |
 | Enricher by ids | n/a | `service.enricher.enrich_jobs_by_ids` | `jobs_final` | `POST /enricher/by-ids?dry_run=true|false` | Re-enriches requested ids without changing job_status |
+| Submit jobs async | n/a | `service.pipeline.submit_jobs_for_enrichment`, `service.enricher.enrich_jobs_by_ids` | `jobs_final`, `shared_links` | `POST /pipeline/submit` | Upserts jobs by `job_url`, upserts `shared_links`, queues in-process enrichment for submitted ids |
 | Pipeline runner | `pipeline run`, `pipeline stage-*` | `service.pipeline.run_pipeline`, `run_stage_ingest`, `run_stage_enriched` | `jobs_final` | `POST /pipeline/*` | 2-stage orchestration |
 
 Important constraints:
 
 - `shared_links` uses URL-based upsert (`on_conflict=url`) for deduplication.
+- `POST /pipeline/submit` starts an in-process daemon thread. If the API process restarts, queued enrichment work is lost.
 
 ## 6. HTTP API Reference
 
@@ -697,6 +699,68 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/enricher/by-ids?dry_r
 ```
 
 ### 6.4 Pipeline endpoints
+
+#### POST /pipeline/submit
+
+Accepts a list of jobs, validates each row independently, upserts valid rows into `jobs_final` with `job_status=SCRAPED`, upserts matching `shared_links` rows by `job_url`, and returns immediately after queueing background enrichment for the submitted ids.
+
+Supported request and response:
+
+- Request body:
+
+```json
+{
+  "rows": [
+    {
+      "company_name": "Acme Corp",
+      "role_title": "Senior Engineer",
+      "job_url": "https://example.com/jobs/1",
+      "description": "Build APIs"
+    },
+    {
+      "bad_field": "x"
+    }
+  ]
+}
+```
+
+- Success response (`202`):
+
+```json
+{
+  "submitted_row_count": 2,
+  "accepted": {
+    "count": 1,
+    "ids": ["550e8400-e29b-41d4-a716-446655440000"]
+  },
+  "queued": {
+    "count": 1,
+    "ids": ["550e8400-e29b-41d4-a716-446655440000"]
+  },
+  "rejected_row_indexes": [1],
+  "errors": [
+    "row[1]: Extra inputs are not permitted"
+  ],
+  "jobs_final_row_count": 1,
+  "shared_links_row_count": 1
+}
+```
+
+- Common error (`400`) when every submitted row is invalid:
+
+```json
+{
+  "detail": "No valid jobs submitted. row[0]: job_url is required."
+}
+```
+
+Notes:
+
+- Validation is per-row. Invalid rows are reported in `errors`; valid rows still continue.
+- Submitted jobs are deduplicated by `job_url` for persistence and queueing.
+- Background enrichment is scoped only to ids accepted in the same request.
+- Successful background enrichment updates those rows to `job_status=ENRICHED`.
+- The background worker is in-process and non-durable.
 
 #### POST /pipeline/run
 

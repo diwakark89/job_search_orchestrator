@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from fastapi.testclient import TestClient
 
 from api.app import app
-from pipeline.models import PipelineResult, StageResult
+from pipeline.models import PipelineResult, StageResult, SubmitJobsResult
 
 _VALID_ROW = {
     "company_name": "Acme Corp",
@@ -61,6 +61,87 @@ def test_pipeline_run_success(monkeypatch) -> None:
     assert payload["stages"][0]["failed"]["count"] == 0
     assert payload["total_processed"] == 1
     assert payload["total_enriched"] == 1
+
+
+def test_pipeline_submit_success_queues_only_submitted_ids(monkeypatch) -> None:
+    import api.routes.pipeline as pipeline_route
+
+    fake_thread = MagicMock()
+    thread_factory = MagicMock(return_value=fake_thread)
+    fake_result = SubmitJobsResult(
+        submitted_row_count=2,
+        accepted_ids=["id-1", "id-2"],
+        accepted_urls=["https://example.com/jobs/1", "https://example.com/jobs/2"],
+        rejected_row_indexes=[2],
+        errors=["row[2]: job_url is required."],
+        jobs_final_row_count=2,
+        shared_links_row_count=2,
+    )
+    monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "submit_jobs_for_enrichment", MagicMock(return_value=fake_result))
+    monkeypatch.setattr(pipeline_route.threading, "Thread", thread_factory)
+
+    client = _make_client()
+    response = client.post("/pipeline/submit", json={"rows": [_VALID_ROW, _VALID_ROW, {"job_url": "   "}]})
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["submitted_row_count"] == 2
+    assert payload["accepted"]["count"] == 2
+    assert payload["accepted"]["ids"] == ["id-1", "id-2"]
+    assert payload["queued"]["count"] == 2
+    assert payload["queued"]["ids"] == ["id-1", "id-2"]
+    assert payload["rejected_row_indexes"] == [2]
+    assert payload["errors"] == ["row[2]: job_url is required."]
+    assert payload["jobs_final_row_count"] == 2
+    assert payload["shared_links_row_count"] == 2
+    thread_factory.assert_called_once_with(
+        target=pipeline_route._run_submitted_jobs_enrichment,
+        args=(["id-1", "id-2"],),
+        name="pipeline-submit-enrichment",
+        daemon=True,
+    )
+    fake_thread.start.assert_called_once()
+
+
+def test_pipeline_submit_validation_error(monkeypatch) -> None:
+    import api.routes.pipeline as pipeline_route
+
+    monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(
+        pipeline_route,
+        "submit_jobs_for_enrichment",
+        MagicMock(side_effect=ValueError("No valid jobs submitted. row[0]: job_url is required.")),
+    )
+
+    client = _make_client()
+    response = client.post("/pipeline/submit", json={"rows": [{"job_url": "   "}]})
+
+    assert response.status_code == 400
+    assert "No valid jobs submitted" in response.json()["detail"]
+
+
+def test_pipeline_submit_runtime_error(monkeypatch) -> None:
+    import api.routes.pipeline as pipeline_route
+
+    monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
+    monkeypatch.setattr(pipeline_route, "load_config", MagicMock(return_value=object()))
+    monkeypatch.setattr(
+        pipeline_route,
+        "submit_jobs_for_enrichment",
+        MagicMock(side_effect=RuntimeError("shared links down")),
+    )
+
+    client = _make_client()
+    response = client.post("/pipeline/submit", json={"rows": [_VALID_ROW]})
+
+    assert response.status_code == 502
+    assert "shared links down" in response.json()["detail"]
 
 
 def test_pipeline_run_stage_failure_includes_failed_row_ids(monkeypatch) -> None:

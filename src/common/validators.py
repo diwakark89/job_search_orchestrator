@@ -45,7 +45,6 @@ class JobsFinalRow(BaseModel):
     modified_at: str | int | float | datetime | None = None
     language: str | None = "English"
     content_hash: str | None = None
-    external_id: str | None = None
     location: str | None = None
     source_platform: str | None = None
     tech_stack: list[str] | None = None

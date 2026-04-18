@@ -14,6 +14,7 @@ The pipeline manages these Supabase tables:
 It also includes:
 
 - an enricher that reads `jobs_final` rows where `job_status=SCRAPED` and patches enrichment data plus `job_status=ENRICHED` directly on `jobs_final`
+- a submit endpoint that upserts incoming jobs by `job_url`, updates `shared_links`, and queues in-process enrichment for those submitted jobs
 - a 2-stage pipeline runner: `ingest → enrich`
 
 ## Integration Guide
@@ -305,6 +306,51 @@ curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
 ```
 
 `POST /pipeline/run`
+
+`POST /pipeline/submit`
+
+Accepts `rows`, upserts valid jobs into `jobs_final` with `job_status=SCRAPED`, upserts `shared_links` by `job_url`, and returns `202` after queueing background enrichment for the accepted ids.
+
+Request body:
+
+```json
+{
+  "rows": [
+    {
+      "company_name": "Acme Corp",
+      "role_title": "Senior Engineer",
+      "job_url": "https://example.com/jobs/1",
+      "description": "Build APIs"
+    }
+  ]
+}
+```
+
+Success response:
+
+```json
+{
+  "submitted_row_count": 1,
+  "accepted": {
+    "count": 1,
+    "ids": ["550e8400-e29b-41d4-a716-446655440000"]
+  },
+  "queued": {
+    "count": 1,
+    "ids": ["550e8400-e29b-41d4-a716-446655440000"]
+  },
+  "rejected_row_indexes": [],
+  "errors": [],
+  "jobs_final_row_count": 1,
+  "shared_links_row_count": 1
+}
+```
+
+Notes:
+
+- background enrichment is in-process and non-durable
+- only ids accepted in the same request are queued
+- successful background enrichment updates those rows to `job_status=ENRICHED`
 
 Request body:
 

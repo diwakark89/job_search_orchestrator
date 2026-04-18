@@ -269,6 +269,7 @@ def enrich_jobs_by_ids(
     copilot_client: SupportsJobExtraction,
     ids: list[str],
     dry_run: bool = False,
+    set_job_status_enriched: bool = False,
 ) -> EnrichmentSummary:
     logger.info("enricher by_ids requested_ids=%s dry_run=%s", len(ids), dry_run)
 
@@ -312,7 +313,7 @@ def enrich_jobs_by_ids(
         rows=found_rows,
         processed_ids=unique_ids,
         dry_run=dry_run,
-        set_job_status_enriched=False,
+        set_job_status_enriched=set_job_status_enriched,
         initial_failed_ids=missing_ids,
         initial_errors=missing_errors,
     )
