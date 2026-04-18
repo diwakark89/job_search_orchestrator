@@ -125,9 +125,10 @@ def run_stage_ingest(repo: SupabaseRepository, rows: list[dict[str, Any]]) -> St
 
     for idx, row in enumerate(rows):
         try:
-            if "job_status" not in row:
-                row["job_status"] = "SCRAPED"
-            validated = JobsFinalRow.model_validate(row)
+            candidate = dict(row)
+            if "job_status" not in candidate:
+                candidate["job_status"] = "SCRAPED"
+            validated = JobsFinalRow.model_validate(candidate)
             normalised = normalize_timestamp_fields(
                 validated.model_dump(exclude_none=True), _INGEST_TIMESTAMP_FIELDS
             )

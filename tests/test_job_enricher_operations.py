@@ -27,7 +27,7 @@ class _FakeCopilotClient:
             data={
                 "tech_stack": ["python", "postgres"],
                 "experience_level": "Senior",
-                "remote_type": "Remote",
+                "work_mode": "remote",
             },
             error=None,
         )
@@ -46,7 +46,7 @@ class _FakeCopilotClient:
                     data={
                         "tech_stack": ["python", "postgres"],
                         "experience_level": "Senior",
-                        "remote_type": "Remote",
+                        "work_mode": "remote",
                     },
                     error=None,
                 )
@@ -114,7 +114,7 @@ def test_enrich_jobs_write_patches_jobs_final() -> None:
         "id": "id-1",
         "tech_stack": ["Python", "PostgreSQL"],
         "experience_level": "Senior",
-        "remote_type": "Remote",
+        "work_mode": "remote",
         "job_status": "ENRICHED",
     }]
 
@@ -255,6 +255,6 @@ def test_enrich_jobs_by_ids_can_set_job_status_enriched() -> None:
         "id": "id-1",
         "tech_stack": ["Python", "PostgreSQL"],
         "experience_level": "Senior",
-        "remote_type": "Remote",
+        "work_mode": "remote",
         "job_status": "ENRICHED",
     }]

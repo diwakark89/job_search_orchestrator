@@ -16,6 +16,8 @@ _VALID_ROW = {
     "role_title": "Backend Engineer",
     "job_url": "https://example.com/jobs/1",
     "description": "Build APIs.",
+    "job_type": "fulltime",
+    "work_mode": "hybrid",
 }
 
 
@@ -49,7 +51,7 @@ def test_pipeline_run_success(monkeypatch) -> None:
     monkeypatch.setattr(pipeline_route, "run_pipeline", MagicMock(return_value=fake_result))
 
     client = _make_client()
-    response = client.post("/pipeline/run", json={"rows": [_VALID_ROW]})
+    response = client.post("/pipeline/run", json={"jobs": [_VALID_ROW]})
 
     assert response.status_code == 200
     payload = response.json()
@@ -84,7 +86,7 @@ def test_pipeline_submit_success_queues_only_submitted_ids(monkeypatch) -> None:
     monkeypatch.setattr(pipeline_route.threading, "Thread", thread_factory)
 
     client = _make_client()
-    response = client.post("/pipeline/submit", json={"rows": [_VALID_ROW, _VALID_ROW, {"job_url": "   "}]})
+    response = client.post("/pipeline/submit", json={"jobs": [_VALID_ROW, _VALID_ROW, {"job_url": "   "}]})
 
     assert response.status_code == 202
     payload = response.json()
@@ -119,7 +121,7 @@ def test_pipeline_submit_validation_error(monkeypatch) -> None:
     )
 
     client = _make_client()
-    response = client.post("/pipeline/submit", json={"rows": [{"job_url": "   "}]})
+    response = client.post("/pipeline/submit", json={"jobs": [{"job_url": "   "}]})
 
     assert response.status_code == 400
     assert "No valid jobs submitted" in response.json()["detail"]
@@ -138,7 +140,7 @@ def test_pipeline_submit_runtime_error(monkeypatch) -> None:
     )
 
     client = _make_client()
-    response = client.post("/pipeline/submit", json={"rows": [_VALID_ROW]})
+    response = client.post("/pipeline/submit", json={"jobs": [_VALID_ROW]})
 
     assert response.status_code == 502
     assert "shared links down" in response.json()["detail"]
@@ -169,7 +171,7 @@ def test_pipeline_run_stage_failure_includes_failed_row_ids(monkeypatch) -> None
     monkeypatch.setattr(pipeline_route, "run_pipeline", MagicMock(return_value=fake_result))
 
     client = _make_client()
-    response = client.post("/pipeline/run", json={"rows": [_VALID_ROW]})
+    response = client.post("/pipeline/run", json={"jobs": [_VALID_ROW]})
 
     assert response.status_code == 200
     payload = response.json()
@@ -207,7 +209,7 @@ def test_pipeline_run_stage_failure_extracts_job_and_batch_ids(monkeypatch) -> N
     monkeypatch.setattr(pipeline_route, "run_pipeline", MagicMock(return_value=fake_result))
 
     client = _make_client()
-    response = client.post("/pipeline/run", json={"rows": [_VALID_ROW]})
+    response = client.post("/pipeline/run", json={"jobs": [_VALID_ROW]})
 
     assert response.status_code == 200
     payload = response.json()
@@ -226,7 +228,7 @@ def test_pipeline_run_validation_error(monkeypatch) -> None:
     monkeypatch.setattr(pipeline_route, "run_pipeline", MagicMock(side_effect=ValueError("bad input")))
 
     client = _make_client()
-    response = client.post("/pipeline/run", json={"rows": [_VALID_ROW]})
+    response = client.post("/pipeline/run", json={"jobs": [_VALID_ROW]})
 
     assert response.status_code == 400
     assert "bad input" in response.json()["detail"]
@@ -243,7 +245,7 @@ def test_pipeline_run_runtime_error(monkeypatch) -> None:
     monkeypatch.setattr(pipeline_route, "run_pipeline", MagicMock(side_effect=RuntimeError("DB down")))
 
     client = _make_client()
-    response = client.post("/pipeline/run", json={"rows": [_VALID_ROW]})
+    response = client.post("/pipeline/run", json={"jobs": [_VALID_ROW]})
 
     assert response.status_code == 502
     assert "DB down" in response.json()["detail"]
@@ -264,7 +266,7 @@ def test_stage_ingest_endpoint_success(monkeypatch) -> None:
     monkeypatch.setattr(pipeline_route, "run_stage_ingest", MagicMock(return_value=fake_result))
 
     client = _make_client()
-    response = client.post("/pipeline/stage/ingest", json={"rows": [_VALID_ROW, _VALID_ROW]})
+    response = client.post("/pipeline/stage/ingest", json={"jobs": [_VALID_ROW, _VALID_ROW]})
 
     assert response.status_code == 200
     payload = response.json()

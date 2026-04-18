@@ -20,6 +20,8 @@ _VALID_ROW = {
     "role_title": "Backend Engineer",
     "job_url": "https://example.com/jobs/1",
     "description": "Build APIs.",
+    "job_type": "fulltime",
+    "work_mode": "hybrid",
 }
 
 
@@ -130,6 +132,8 @@ def test_submit_jobs_for_enrichment_success() -> None:
                 "job_status": "SCRAPED",
                 "is_deleted": False,
                 "language": "English",
+                "job_type": "fulltime",
+                "work_mode": "hybrid",
             },
             {
                 "company_name": "Acme Corp",
@@ -140,6 +144,8 @@ def test_submit_jobs_for_enrichment_success() -> None:
                 "job_status": "SCRAPED",
                 "is_deleted": False,
                 "language": "English",
+                "job_type": "fulltime",
+                "work_mode": "hybrid",
             },
         ],
         "on_conflict": "job_url",
@@ -183,6 +189,22 @@ def test_submit_jobs_for_enrichment_requires_valid_job() -> None:
 
     with pytest.raises(ValueError, match="No valid jobs submitted"):
         submit_jobs_for_enrichment(repo=MagicMock(), rows=[{"job_url": "   "}, {"bad_field": "x"}])
+
+
+def test_submit_jobs_for_enrichment_rejects_remote_type_field() -> None:
+    from service.pipeline import submit_jobs_for_enrichment
+
+    with pytest.raises(ValueError, match="No valid jobs submitted"):
+        submit_jobs_for_enrichment(
+            repo=MagicMock(),
+            rows=[{
+                "company_name": "Acme Corp",
+                "role_title": "Backend Engineer",
+                "job_url": "https://example.com/jobs/legacy",
+                "description": "Build APIs.",
+                "remote_type": "Remote",
+            }],
+        )
 
 
 def test_submit_jobs_for_enrichment_fails_when_select_misses_url() -> None:

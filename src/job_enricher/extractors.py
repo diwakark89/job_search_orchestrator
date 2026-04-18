@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from common.constants import normalize_work_mode
+
 from .client_copilot import (
     CopilotBatchExtractionInput,
     CopilotBatchExtractionResult,
     CopilotClient,
     CopilotExtractionResult,
 )
-from .constants import ALLOWED_EXPERIENCE_LEVELS, ALLOWED_REMOTE_TYPES, CANONICAL_TECH_STACK
+from .constants import ALLOWED_EXPERIENCE_LEVELS, CANONICAL_TECH_STACK
 
 
 class SupportsBatchJobExtraction(Protocol):
@@ -63,12 +65,18 @@ def _normalize_enum(value: Any, allowed: set[str]) -> str:
     return cleaned if cleaned in allowed else "Unknown"
 
 
+def _normalize_work_mode_value(value: Any) -> str:
+    if not isinstance(value, str):
+        return "other"
+    return normalize_work_mode(value)
+
+
 def build_enriched_row(row_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row_id,
         "tech_stack": _normalize_tech_stack(payload.get("tech_stack")),
         "experience_level": _normalize_enum(payload.get("experience_level"), ALLOWED_EXPERIENCE_LEVELS),
-        "remote_type": _normalize_enum(payload.get("remote_type"), ALLOWED_REMOTE_TYPES),
+        "work_mode": _normalize_work_mode_value(payload.get("work_mode")),
     }
 
 

@@ -174,7 +174,7 @@ pip install -r requirements.txt
 | Soft delete helper | `db soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
 | Get metrics | n/a | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
 | Enricher | `enricher enrich` | `service.enricher.enrich_jobs` | `jobs_final` | `POST /enricher/run` | Reads SCRAPED rows, patches ENRICHED |
-| Enricher by ids | n/a | `service.enricher.enrich_jobs_by_ids` | `jobs_final` | `POST /enricher/by-ids?dry_run=true|false` | Re-enriches requested ids without changing job_status |
+| Enricher by ids | n/a | `service.enricher.enrich_jobs_by_ids` | `jobs_final` | `POST /enricher/by-ids?dry_run=true\|false` | Re-enriches requested ids without changing job_status |
 | Submit jobs async | n/a | `service.pipeline.submit_jobs_for_enrichment`, `service.enricher.enrich_jobs_by_ids` | `jobs_final`, `shared_links` | `POST /pipeline/submit` | Upserts jobs by `job_url`, upserts `shared_links`, queues in-process enrichment for submitted ids |
 | Pipeline runner | `pipeline run`, `pipeline stage-*` | `service.pipeline.run_pipeline`, `run_stage_ingest`, `run_stage_enriched` | `jobs_final` | `POST /pipeline/*` | 2-stage orchestration |
 
@@ -710,12 +710,14 @@ Supported request and response:
 
 ```json
 {
-  "rows": [
+  "jobs": [
     {
       "company_name": "Acme Corp",
       "role_title": "Senior Engineer",
       "job_url": "https://example.com/jobs/1",
-      "description": "Build APIs"
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
     },
     {
       "bad_field": "x"
@@ -758,6 +760,8 @@ Notes:
 
 - Validation is per-row. Invalid rows are reported in `errors`; valid rows still continue.
 - Submitted jobs are deduplicated by `job_url` for persistence and queueing.
+- `job_type` canonical values are `fulltime`, `parttime`, `internship`, `contract`, `temporary`, and `other`. Unmatched input is stored as `other`.
+- `work_mode` canonical values are `remote`, `hybrid`, `on-site`, and `other`. Unmatched input is stored as `other`.
 - Background enrichment is scoped only to ids accepted in the same request.
 - Successful background enrichment updates those rows to `job_status=ENRICHED`.
 - The background worker is in-process and non-durable.
@@ -772,12 +776,14 @@ Supported request and response:
 
 ```json
 {
-  "rows": [
+  "jobs": [
     {
       "company_name": "Acme Corp",
       "role_title": "Senior Engineer",
       "job_url": "https://example.com/jobs/1",
-      "description": "Build APIs"
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
     }
   ],
   "limit": 50,
@@ -828,12 +834,14 @@ Supported request and response:
 
 ```json
 {
-  "rows": [
+  "jobs": [
     {
       "company_name": "Acme Corp",
       "role_title": "Senior Engineer",
       "job_url": "https://example.com/jobs/1",
-      "description": "Build APIs"
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
     }
   ]
 }
@@ -867,7 +875,12 @@ Runs the enrich stage only. Processes `jobs_final` rows with `job_status=SCRAPED
 - `job_status` → "ENRICHED"
 - `tech_stack` → Normalized array of technology names extracted from job description
 - `experience_level` → Normalized experience level from the job description (possible values: "Internship", "Entry", "Mid", "Senior", "Lead", "Unknown")
-- `remote_type` → Normalized remote work type from the job description (possible values: "Remote", "Hybrid", "Onsite", "Unknown")
+- `work_mode` → Normalized work mode from the job description (possible values: "remote", "hybrid", "on-site", "other")
+
+Schema note:
+
+- Apply [db/migrations/2026-04-18_add_job_type_work_mode_to_jobs_final.sql](db/migrations/2026-04-18_add_job_type_work_mode_to_jobs_final.sql) manually in Supabase SQL Editor or your deployment workflow before sending `job_type` and `work_mode` to pipeline endpoints.
+- The migration backfills `work_mode` from existing legacy values when needed and then drops the old column.
 
 Supported request and response:
 

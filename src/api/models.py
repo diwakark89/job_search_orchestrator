@@ -94,13 +94,13 @@ class PipelineResultResponse(BaseModel):
 
 
 class PipelineRunRequest(BaseModel):
-    rows: list[dict[str, Any]]
+    jobs: list[dict[str, Any]]
     limit: int = Field(default=50, ge=1)
     dry_run: bool = False
 
 
 class PipelineSubmitRequest(BaseModel):
-    rows: list[dict[str, Any]]
+    jobs: list[dict[str, Any]]
 
 
 class PipelineSubmitResponse(BaseModel):
@@ -114,7 +114,7 @@ class PipelineSubmitResponse(BaseModel):
 
 
 class PipelineStageIngestRequest(BaseModel):
-    rows: list[dict[str, Any]]
+    jobs: list[dict[str, Any]]
 
 
 class PipelineStageEnrichRequest(BaseModel):

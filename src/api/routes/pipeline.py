@@ -120,7 +120,7 @@ def pipeline_run(payload: PipelineRunRequest) -> PipelineResultResponse:
         result = run_pipeline(
             repo=repo,
             copilot_client=copilot_client,
-            rows=payload.rows,
+            rows=payload.jobs,
             limit=payload.limit,
             dry_run=payload.dry_run,
         )
@@ -142,7 +142,7 @@ def pipeline_run(payload: PipelineRunRequest) -> PipelineResultResponse:
 def pipeline_submit(payload: PipelineSubmitRequest) -> PipelineSubmitResponse:
     try:
         repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-        result = submit_jobs_for_enrichment(repo=repo, rows=payload.rows)
+        result = submit_jobs_for_enrichment(repo=repo, rows=payload.jobs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -178,7 +178,7 @@ def pipeline_submit(payload: PipelineSubmitRequest) -> PipelineSubmitResponse:
 def pipeline_stage_ingest(payload: PipelineStageIngestRequest) -> EnrichmentSummaryResponse:
     try:
         repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
-        result = run_stage_ingest(repo=repo, rows=payload.rows)
+        result = run_stage_ingest(repo=repo, rows=payload.jobs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

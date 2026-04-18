@@ -9,8 +9,12 @@ from .constants import (
     APPROVAL_VALUES,
     DECISION_VALUES,
     JOB_STATUS_VALUES,
+    JOB_TYPE_VALUES,
     SHARED_LINK_SOURCES,
+    WORK_MODE_VALUES,
     normalize_job_status,
+    normalize_job_type,
+    normalize_work_mode,
 )
 
 
@@ -47,9 +51,10 @@ class JobsFinalRow(BaseModel):
     content_hash: str | None = None
     location: str | None = None
     source_platform: str | None = None
+    job_type: str | None = None
+    work_mode: str | None = None
     tech_stack: list[str] | None = None
     experience_level: str | None = None
-    remote_type: str | None = None
     decision: str | None = None
     reason: str | None = None
     confidence: float | int | None = None
@@ -74,6 +79,26 @@ class JobsFinalRow(BaseModel):
         if value not in DECISION_VALUES:
             raise ValueError(f"Invalid decision '{value}'.")
         return value
+
+    @field_validator("job_type")
+    @classmethod
+    def validate_job_type(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = normalize_job_type(value)
+        if normalized not in JOB_TYPE_VALUES:
+            raise ValueError(f"Invalid job_type '{value}'.")
+        return normalized
+
+    @field_validator("work_mode")
+    @classmethod
+    def validate_work_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = normalize_work_mode(value)
+        if normalized not in WORK_MODE_VALUES:
+            raise ValueError(f"Invalid work_mode '{value}'.")
+        return normalized
 
     @field_validator("user_action")
     @classmethod

@@ -132,7 +132,7 @@ class TestJobsFinalValidator:
         rows = [{
             "tech_stack": ["Python", "FastAPI"],
             "experience_level": "Senior",
-            "remote_type": "Hybrid",
+            "work_mode": "hybrid",
         }]
         result = validate_jobs_final_rows(rows)
         assert result[0]["tech_stack"] == ["Python", "FastAPI"]
@@ -141,6 +141,36 @@ class TestJobsFinalValidator:
         rows = [{"source_platform": "indeed"}]
         result = validate_jobs_final_rows(rows)
         assert result[0]["source_platform"] == "indeed"
+
+    def test_job_type_canonical_value_preserved(self):
+        rows = [{"job_type": "fulltime"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["job_type"] == "fulltime"
+
+    def test_job_type_alias_normalised(self):
+        rows = [{"job_type": "Full-Time"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["job_type"] == "fulltime"
+
+    def test_job_type_unknown_falls_back_to_other(self):
+        rows = [{"job_type": "freelance"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["job_type"] == "other"
+
+    def test_work_mode_canonical_value_preserved(self):
+        rows = [{"work_mode": "hybrid"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["work_mode"] == "hybrid"
+
+    def test_work_mode_alias_normalised(self):
+        rows = [{"work_mode": "On Site"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["work_mode"] == "on-site"
+
+    def test_work_mode_unknown_falls_back_to_other(self):
+        rows = [{"work_mode": "field"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["work_mode"] == "other"
 
     def test_tags_rejected(self):
         rows = [{"tags": ["python", "fastapi"]}]

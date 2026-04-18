@@ -44,13 +44,13 @@ def test_build_enriched_row_normalizes_fields() -> None:
         payload={
             "tech_stack": ["js", "ReactJS", "node", "react"],
             "experience_level": "senior",
-            "remote_type": "hybrid",
+            "work_mode": "hybrid",
         },
     )
 
     assert row["tech_stack"] == ["JavaScript", "React", "Node.js"]
     assert row["experience_level"] == "Senior"
-    assert row["remote_type"] == "Hybrid"
+    assert row["work_mode"] == "hybrid"
 
 
 def test_enrich_job_row_success() -> None:
@@ -58,7 +58,7 @@ def test_enrich_job_row_success() -> None:
         payload={
             "tech_stack": ["python", "postgres"],
             "experience_level": "Lead",
-            "remote_type": "Remote",
+            "work_mode": "remote",
         }
     )
     row, error = enrich_job_row(
@@ -95,7 +95,7 @@ def test_enrich_job_rows_batches_and_skips_missing_description() -> None:
         payload={
             "tech_stack": ["python", "postgres"],
             "experience_level": "Senior",
-            "remote_type": "Remote",
+            "work_mode": "remote",
         }
     )
 

@@ -1,0 +1,24 @@
+command-> jobspy-search "software engineer" --country "germany" --sites "xing"  --results 1          
+
+Response:
+{
+  "ok": true,
+  "jobs": [
+    {
+      "id": "42fd2c9c-b49e-43ad-a8a0-c13294a93b77",
+      "company_name": null,
+      "role_title": "Software Engineer, Game Development (f/m/d)",
+      "description": "About this job\n--------------\n\nOn-site | Full-Time | Karlsruhe, Germany\n\n**5 Million Players. 4.8 Stars.**\n\n**We're just getting started.**\n\nIteration One is a self-funded, independent gaming studio in Karlsruhe. With Nightclub Tycoon - a free-to-play idle tycoon game on iOS and Android - we've built a game played by millions, with a small team and no outside money.\n\nWe're 7 people. We're growing. And we're looking for a software engineer who's excited about where the craft is heading - where AI handles the repetitive typing and boilerplate, and you focus on the thinking, the architecture, and the decisions that actually matter.\n\nTasks\n-----\n\n**What You'll Do**\n\nYou'll work across the full development cycle - from pre-production through live operations - as part of a small, cross-functional team. That means writing and optimizing C# in Unity, building efficient and reusable systems, and making sure your code is something your teammates can actually work with. You'll use tools like Codex or Claude Code daily as a core part of how you work. You'll contribute to coding standards, design documents, and help the team move faster and smarter.\n\nNo ticket queues. No waiting for permission. You'll have real influence over what we build and how we build it.\n\nRequirements\n------------\n\n**What We're Looking For**\n\n* Depending on the level, strong professional background in C# and Unity, ideally with live game experience\n* Ability to write clean, understandable code and document it properly\n* Collaborative - comfortable working across design, production, and art\n* Able to estimate timelines and deliver on them\n* Understanding of mobile development for Android and iOS\n* Passion for technology and AI\n\nNice to have: deep knowledge of Unity pipelines (asset management, UI, networking), experience with reactive programming (UniRx), and a track record of resolving memory and performance issues.\n\n**On AI**\n\nWe're going all-in on AI - and we mean that seriously. Not as a productivity tip or a trend to follow, but as the operating system of how this company works. We believe the companies that figure this out are the future, and we intend to be one of them. We expect you to use tools like Codex, Claude Code and other as part of your daily workflow - not occasionally, but as a default. If you see AI as an opportunity rather than a threat and you're already experimenting - you'll feel at home here.\n\nBenefits\n--------\n\n**How You'll Grow**\n\nGrowth here is on you, but the conditions are real. We're building a company where people grow into the entrepreneurs of tomorrow. Through real ownership, transparency, space to experiment, and permission to take risks.\n\nYou'll have the autonomy to make decisions, run experiments, and own your work end to end. What you ship reaches millions of devices, and we want you to feel that weight and be motivated by it. If that sounds like the kind of place you want to be, we'd love to hear from you.\n\n**The Basics**\n\n* Location: Karlsruhe, German hear from you.\n\n**The Basics**\n\n* Location: Karlsruhe, Germany (close to main station)\n* Work model: Work 1 day remotely and 4 days on-site\n* Employment: Full-time\n* Working language: English / German\n\nWe keep it simple and move fast - because your time matters too. A first interview to get to know each other, a second to go deeper, and a short trial task to see how you work. No endless rounds, no committees.\n\nIf it feels like a fit on both sides, you'll know quickly.\n\nReady to build something great? We'd love to hear from you.",
+      "description_source": "detail_page",
+      "job_type": "fulltime",
+      "job_url": "https://www.xing.com/jobs/karlsruhe-software-engineer-game-development-152502718",
+      "location": null,
+      "work_mode": "hybrid",
+      "language": "English",
+      "source_platform": "xing",
+      "scraped_at": "2026-04-18T04:06:49.055246+00:00",
+      "content_hash": "67197987ca6bba3d166a94ccf01cb2efdbdf54be01f94e666a9cbe2937ae85c0"
+    }
+  ],
+  "error": null
+}

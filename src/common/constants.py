@@ -51,6 +51,52 @@ SHARED_LINK_SOURCES: set[str] = {
     "manual",
 }
 
+JOB_TYPE_VALUES: set[str] = {
+    "fulltime",
+    "parttime",
+    "internship",
+    "contract",
+    "temporary",
+    "other",
+}
+
+_JOB_TYPE_ALIASES: dict[str, str] = {
+    "full-time": "fulltime",
+    "full time": "fulltime",
+    "part-time": "parttime",
+    "part time": "parttime",
+    "intern": "internship",
+}
+
+
+def normalize_job_type(value: str) -> str:
+    normalized = value.strip().lower()
+    compact = " ".join(normalized.split())
+    if compact in JOB_TYPE_VALUES:
+        return compact
+    return _JOB_TYPE_ALIASES.get(compact, "other")
+
+
+WORK_MODE_VALUES: set[str] = {
+    "remote",
+    "hybrid",
+    "on-site",
+    "other",
+}
+
+_WORK_MODE_ALIASES: dict[str, str] = {
+    "onsite": "on-site",
+    "on site": "on-site",
+}
+
+
+def normalize_work_mode(value: str) -> str:
+    normalized = value.strip().lower()
+    compact = " ".join(normalized.split())
+    if compact in WORK_MODE_VALUES:
+        return compact
+    return _WORK_MODE_ALIASES.get(compact, "other")
+
 DECISION_VALUES: set[str] = {
     "AUTO_APPROVE",
     "REVIEW",

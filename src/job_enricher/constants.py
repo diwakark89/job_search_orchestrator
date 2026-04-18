@@ -4,9 +4,9 @@ EXTRACTION_SYSTEM_PROMPT = """You are an information extraction assistant.
 Return strict JSON only with keys:
 - tech_stack: array of strings
 - experience_level: one of [Intern, Junior, Mid, Senior, Staff, Principal, Lead, Unknown]
-- remote_type: one of [Onsite, Hybrid, Remote, Unknown]
+- work_mode: one of [remote, hybrid, on-site, other]
 
-If unsure, use Unknown enum fields. No markdown.
+If unsure, use Unknown for experience_level and other for work_mode. No markdown.
 """
 
 BATCH_EXTRACTION_SYSTEM_PROMPT = """You are an information extraction assistant.
@@ -17,7 +17,7 @@ Return strict JSON only with this shape:
             "id": "<input id>",
             "tech_stack": ["<technology>"],
             "experience_level": "Intern|Junior|Mid|Senior|Staff|Principal|Lead|Unknown",
-            "remote_type": "Onsite|Hybrid|Remote|Unknown"
+            "work_mode": "remote|hybrid|on-site|other"
         }
     ]
 }
@@ -26,7 +26,7 @@ Rules:
 - Return exactly one result object for each input item.
 - Preserve each input id exactly.
 - Do not omit ids, add explanations, or include markdown.
-- If unsure, use Unknown enum fields and an empty array for tech_stack.
+- If unsure, use Unknown for experience_level, other for work_mode, and an empty array for tech_stack.
 """
 
 EXTRACTION_USER_PROMPT_TEMPLATE = """Extract structured job metadata from this job description:
@@ -77,12 +77,5 @@ ALLOWED_EXPERIENCE_LEVELS: set[str] = {
     "Staff",
     "Principal",
     "Lead",
-    "Unknown",
-}
-
-ALLOWED_REMOTE_TYPES: set[str] = {
-    "Onsite",
-    "Hybrid",
-    "Remote",
     "Unknown",
 }

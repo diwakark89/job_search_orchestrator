@@ -43,6 +43,9 @@ Or with pip:
 pip install -r requirements.txt
 ```
 
+If you need the new `jobs_final.job_type` and `jobs_final.work_mode` columns, apply [db/migrations/2026-04-18_add_job_type_work_mode_to_jobs_final.sql](db/migrations/2026-04-18_add_job_type_work_mode_to_jobs_final.sql) manually in Supabase before using the updated pipeline payloads.
+That migration backfills `work_mode` from existing legacy values and then removes the old column.
+
 1. Provide environment variables:
 
 ```env
@@ -309,18 +312,20 @@ curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
 
 `POST /pipeline/submit`
 
-Accepts `rows`, upserts valid jobs into `jobs_final` with `job_status=SCRAPED`, upserts `shared_links` by `job_url`, and returns `202` after queueing background enrichment for the accepted ids.
+Accepts `jobs`, upserts valid jobs into `jobs_final` with `job_status=SCRAPED`, upserts `shared_links` by `job_url`, and returns `202` after queueing background enrichment for the accepted ids.
 
 Request body:
 
 ```json
 {
-  "rows": [
+  "jobs": [
     {
       "company_name": "Acme Corp",
       "role_title": "Senior Engineer",
       "job_url": "https://example.com/jobs/1",
-      "description": "Build APIs"
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
     }
   ]
 }
@@ -351,17 +356,21 @@ Notes:
 - background enrichment is in-process and non-durable
 - only ids accepted in the same request are queued
 - successful background enrichment updates those rows to `job_status=ENRICHED`
+- `job_type` stored values are `fulltime`, `parttime`, `internship`, `contract`, `temporary`, or `other`
+- `work_mode` stored values are `remote`, `hybrid`, `on-site`, or `other`
 
 Request body:
 
 ```json
 {
-  "rows": [
+  "jobs": [
     {
       "company_name": "Acme Corp",
       "role_title": "Senior Engineer",
       "job_url": "https://example.com/jobs/1",
-      "description": "Build APIs"
+      "description": "Build APIs",
+      "job_type": "fulltime",
+      "work_mode": "hybrid"
     }
   ],
   "limit": 50,
@@ -401,10 +410,11 @@ Success response:
 Runs the enrich stage only. Processes SCRAPED jobs and extracts enrichment data from job descriptions.
 
 **Fields updated in `jobs_final`:**
+
 - `job_status` → "ENRICHED"
 - `tech_stack` → Normalized list of technologies extracted from job description
 - `experience_level` → Normalized experience level (Internship, Entry, Mid, Senior, Lead, or Unknown)
-- `remote_type` → Normalized remote type (Remote, Hybrid, Onsite, or Unknown)
+- `work_mode` → Normalized work mode (remote, hybrid, on-site, or other)
 
 ```bash
 curl -X POST http://localhost:8000/pipeline/stage/enriched \
