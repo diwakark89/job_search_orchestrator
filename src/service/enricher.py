@@ -9,6 +9,8 @@ from repository.supabase import SupabaseRepository
 from job_enricher.client_copilot import CopilotBatchExtractionInput, CopilotBatchExtractionResult
 from job_enricher.extractors import enrich_job_rows
 
+from .enricher_persistence import patch_enriched_rows as _patch_enriched_rows_impl
+
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -144,59 +146,16 @@ def _patch_enriched_rows(
     target_job_status: str,
     submit_request_id: str | None = None,
 ) -> tuple[list[str], int, int]:
-    if not enriched_rows:
-        return [], 0, 0
-
-    rows_to_upsert: list[dict[str, Any]] = []
-    for enriched_row in enriched_rows:
-        payload = dict(enriched_row)
-        if set_job_status_enriched:
-            payload["job_status"] = target_job_status
-        rows_to_upsert.append(payload)
-
-    if set_job_status_enriched:
-        enriched_ids_for_patch = [str(r.get("id", "")) for r in rows_to_upsert]
-        logger.info(
-            "enricher setting job_status=%s for %s rows submit_request_id=%s",
-            target_job_status,
-            len(rows_to_upsert),
-            submit_request_id,
-        )
-        logger.debug(
-            "enricher job_status=%s ids submit_request_id=%s ids=%s",
-            target_job_status,
-            submit_request_id,
-            enriched_ids_for_patch,
-        )
-
-    logger.info(
-        "enricher persisting batch rows=%s set_job_status_enriched=%s submit_request_id=%s",
-        len(rows_to_upsert),
-        set_job_status_enriched,
-        submit_request_id,
+    return _patch_enriched_rows_impl(
+        repo=repo,
+        enriched_rows=enriched_rows,
+        success_ids=success_ids,
+        failed_ids=failed_ids,
+        errors=errors,
+        set_job_status_enriched=set_job_status_enriched,
+        target_job_status=target_job_status,
+        submit_request_id=submit_request_id,
     )
-    upsert_result = repo.upsert_rows(table="jobs_final", rows=rows_to_upsert, on_conflict="id")
-    if upsert_result.success:
-        logger.info(
-            "enricher persisted batch rows=%s repo_row_count=%s submit_request_id=%s",
-            len(rows_to_upsert),
-            upsert_result.row_count,
-            submit_request_id,
-        )
-        return list(success_ids), 1, upsert_result.row_count
-
-    logger.error(
-        "enricher persist_failed rows=%s repo_row_count=%s submit_request_id=%s",
-        len(rows_to_upsert),
-        upsert_result.row_count,
-        submit_request_id,
-    )
-    for row in rows_to_upsert:
-        row_id = str(row["id"])
-        errors.append(f"id={row_id}: failed to persist enrichment data")
-        failed_ids.append(row_id)
-
-    return [], 1, upsert_result.row_count
 
 
 def _enrich_rows(

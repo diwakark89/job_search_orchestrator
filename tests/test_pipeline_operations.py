@@ -128,7 +128,6 @@ def test_submit_jobs_for_enrichment_success() -> None:
                 "role_title": "Backend Engineer",
                 "job_url": "https://example.com/jobs/0",
                 "description": "Build APIs.",
-                "match_score": 90,
                 "job_status": "SCRAPED",
                 "is_deleted": False,
                 "language": "English",
@@ -140,7 +139,6 @@ def test_submit_jobs_for_enrichment_success() -> None:
                 "role_title": "Backend Engineer",
                 "job_url": "https://example.com/jobs/1",
                 "description": "Build APIs.",
-                "match_score": 90,
                 "job_status": "SCRAPED",
                 "is_deleted": False,
                 "language": "English",
@@ -252,7 +250,7 @@ def test_submit_jobs_for_enrichment_fails_when_shared_links_upsert_fails() -> No
 
 
 def test_stage_enriched_success(monkeypatch) -> None:
-    import service.pipeline as ops_module
+    import service.stages.enrich as ops_module
 
     fake_summary = MagicMock(enriched=MagicMock(count=3, ids=["id-1", "id-2", "id-3"]), errors=[])
     monkeypatch.setattr(ops_module, "enrich_jobs", MagicMock(return_value=fake_summary))
@@ -271,7 +269,7 @@ def test_stage_enriched_success(monkeypatch) -> None:
 
 
 def test_stage_enriched_runtime_error(monkeypatch) -> None:
-    import service.pipeline as ops_module
+    import service.stages.enrich as ops_module
 
     monkeypatch.setattr(ops_module, "enrich_jobs", MagicMock(side_effect=RuntimeError("Fetch failed")))
 
@@ -297,7 +295,7 @@ def test_pipeline_full_success() -> None:
     repo.upsert_rows.return_value = OperationResult(True, 201, "jobs_final", "upsert", 2)
     repo.select_rows.return_value = OperationResult(True, 200, "jobs_final", "select", 0, data=[])
 
-    import service.pipeline as ops_module
+    import service.stages.enrich as ops_module
     from unittest.mock import patch
 
     fake_summary = MagicMock(enriched=MagicMock(count=2, ids=["id-1", "id-2"]), errors=[])

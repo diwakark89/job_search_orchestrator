@@ -43,7 +43,7 @@ class TestJobsFinalValidator:
     def test_defaults_applied(self):
         rows = [{"company_name": "Acme"}]
         result = validate_jobs_final_rows(rows)
-        assert result[0].get("match_score") == 90
+        assert result[0].get("match_score") is None
         assert result[0].get("language") == "English"
         assert result[0].get("is_deleted") is False
         assert result[0].get("job_status") == "SAVED"

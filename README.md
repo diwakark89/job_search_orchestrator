@@ -1,9 +1,10 @@
 # Automated Job Hunt Orchestrator
 
-This project exposes three integration surfaces for the Automated Job Hunt data pipeline:
+This project exposes four integration surfaces for the Automated Job Hunt data pipeline:
 
 - a FastAPI HTTP API for table CRUD and orchestration
 - a Typer CLI for operator workflows
+- an MCP server for multi-site job scraping
 - a Python library split into `common`, `repository`, and `service` layers
 
 The pipeline manages these Supabase tables:
@@ -16,6 +17,7 @@ It also includes:
 - an enricher that reads `jobs_final` rows where `job_status=SCRAPED` and patches enrichment data plus `job_status=ENRICHED` directly on `jobs_final`
 - a submit endpoint that upserts incoming jobs by `job_url`, updates `shared_links`, and queues in-process enrichment for those submitted jobs
 - a 2-stage pipeline runner: `ingest → enrich`
+- a merged scraping domain and vendored `jobspy_mcp_server` compatibility package for job-board search and MCP tooling
 
 ## Integration Guide
 
@@ -68,12 +70,42 @@ uv run python main.py db tables
 uv run python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
 uv run python main.py enricher enrich --limit 20 --dry-run
 uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
+uv run python main.py scraping search "software engineer" --sites linkedin,indeed --results 5
 ```
 
 Start the server:
 
 ```bash
 uv run uvicorn server:app --host 0.0.0.0 --port 8000
+```
+
+Start the MCP server:
+
+```bash
+uv run python mcp_server.py
+```
+
+Installed-script compatibility for the merged MCP package:
+
+```bash
+uv run jobspy-mcp-server
+uv run jobspy-search "software engineer" --sites linkedin,indeed --results 5
+```
+
+## Scraping Compatibility Contract
+
+The merged repository preserves job scraping core functionality without changing external usage patterns:
+
+- CLI access remains available through `jobspy-search`.
+- MCP server access remains available through `jobspy-mcp-server` and `python mcp_server.py`.
+- Existing users can continue scraping through either interface without changing payload semantics.
+
+Compatibility smoke-check commands:
+
+```bash
+uv run jobspy-search --help
+uv run jobspy-mcp-server --help
+python mcp_server.py --help
 ```
 
 Or run with Python directly:
@@ -442,7 +474,7 @@ curl -X POST http://localhost:8000/db/shared-links \
 
 ## CLI
 
-The CLI uses the `db`, `enricher`, and `pipeline` groups.
+The CLI uses the `db`, `enricher`, `pipeline`, and `scraping` groups.
 
 Examples:
 
@@ -451,6 +483,7 @@ uv run python main.py db soft-delete --table jobs_final --record-id 550e8400-e29
 uv run python main.py db patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
 uv run python main.py enricher enrich --limit 50
 uv run python main.py pipeline stage-enriched --limit 20 --dry-run
+uv run python main.py scraping search "android engineer" --cities Berlin,Munich --sites linkedin,stepstone
 ```
 
 Run API tests only:

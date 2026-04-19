@@ -42,7 +42,7 @@ class JobsFinalRow(BaseModel):
     role_title: str | None = None
     job_url: str | None = None
     description: str | None = None
-    match_score: float | int | None = 90
+    match_score: float | int | None = None
     saved_at: str | int | float | datetime | None = None
     job_status: str | None = "SAVED"
     is_deleted: bool = False

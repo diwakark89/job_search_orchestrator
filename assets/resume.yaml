@@ -1,0 +1,206 @@
+# ============================================================
+# resume.yaml — JobSearchAgent personal profile
+# ============================================================
+# Copy this file to resume.yaml and fill in your real details.
+# resume.yaml is gitignored — your personal data stays local.
+#
+# This file serves two purposes:
+#   1. Scoring: summary + skills + experience are sent to the AI
+#      to score job matches against your profile.
+#   2. Auto-fill (Phase 2): personal + autofill sections will be
+#      used by the browser automation layer to fill application forms.
+# ============================================================
+
+# ------------------------------------------------------------
+# Personal information — used for form auto-fill (Phase 2)
+# ------------------------------------------------------------
+personal:
+  name: Diwakar Kushwaha
+  email: diwakark.nitk@gmail.com
+  phone: "+49 15202 138768"
+  location: Darmstadt, Germany
+  linkedin: ""                             # add your LinkedIn URL
+  github: ""                               # add your GitHub URL
+  website: ""                              # optional, leave blank if none
+  nationality: Indian
+  work_authorization: EU Blue Card (valid until Jan 2028)
+
+# ------------------------------------------------------------
+# Professional summary — sent to AI for job scoring
+# Keep it concise (under 500 chars is ideal).
+# ------------------------------------------------------------
+summary: >
+  Senior Java & Spring Boot engineer with 12+ years of experience in
+  microservices, event-driven design with Kafka, and cloud (AWS/Kubernetes).
+  Proven track record in space, banking, and insurance domains. Based in
+  Darmstadt, Germany with EU Blue Card. Seeking English-only backend or
+  cloud engineering roles in Germany or remote.
+
+# ------------------------------------------------------------
+# Skills — grouped by category
+# All skills here are joined into the scoring prompt.
+# ------------------------------------------------------------
+skills:
+  languages:
+    - Java 21
+    - Python
+    - SQL
+  frameworks:
+    - Spring Boot 3.x
+    - Spring Cloud
+    - Microservices Architecture
+    - RESTful APIs
+    - Hibernate
+  messaging_and_data:
+    - Apache Kafka
+    - DynamoDB
+    - Oracle DB
+  cloud_and_devops:
+    - AWS (S3, EKS, DynamoDB)
+    - Kubernetes
+    - Docker
+    - Helm
+    - Jenkins
+    - CI/CD
+    - Maven
+  testing_and_tools:
+    - JUnit 5
+    - Mockito
+    - TDD
+    - Grafana
+    - IntelliJ IDEA
+    - Jira
+    - Git / GitHub
+  methodology:
+    - Agile (Scrum / Kanban)
+    - System Design (HLD / LLD)
+    - Technical Mentorship
+    - AI Integration
+
+# ------------------------------------------------------------
+# Work experience — used in scoring context + autofill
+# ------------------------------------------------------------
+experience:
+  - company: CS Group Germany
+    role: Senior Software Engineer
+    start: "2022-09"
+    end: present
+    location: Germany
+    description: >
+      Designed system-level architecture including IAM, data security, and
+      workload management for migrating on-premise ground segment software
+      to cloud. Built scalable fault-tolerant microservice (CO2M project) to
+      download 35GB+ satellite dump files and integrate with Kafka Connect.
+      Migrated legacy Java projects to Spring Boot. Provided Kafka and
+      Spring Boot consultancy across teams.
+
+  - company: BNY Mellon Technologies
+    role: Senior Software Engineer
+    start: "2019-11"
+    end: "2022-09"
+    location: India (Remote)
+    description: >
+      Improved document upload throughput from 1800 to 6000+, email
+      delivery from 2000 to 10000+ per hour, and document merge from
+      500 to 6000+ per hour. Designed and developed S3-based solution
+      for high-volume email attachment delivery.
+
+  - company: Oracle India PVT Ltd
+    role: Senior Software Engineer
+    start: "2016-07"
+    end: "2019-11"
+    location: India
+    description: >
+      Led architecture design and full-stack development of Rule
+      Configuration module from scratch. Created Task module integrated
+      with Kafka. Sole developer of Contact Upload module handling
+      100k+ records per file.
+
+  - company: Intellect Design Arena Ltd
+    role: Product Engineer
+    start: "2014-07"
+    end: "2016-11"
+    location: India
+    description: >
+      Built REST APIs and business logic for multiple product features.
+      Improved code and functional coverage using JaCoCo from 55% to 90%.
+
+  - company: Polaris Software Service
+    role: Graduate Intern
+    start: "2014-01"
+    end: "2014-06"
+    location: India
+    description: >
+      Developed application to read and analyze logs using Hadoop MapReduce.
+
+# ------------------------------------------------------------
+# Education
+# ------------------------------------------------------------
+education:
+  - institution: National Institute of Technology, Surathkal
+    degree: Master of Computer Applications (MCA)
+    year: "2014"
+
+  - institution: Makhanlal Chaturvedi Rashtriya Patrakarita Evam Sanchar Vishwavidyalaya, Bhopal
+    degree: Bachelor of Computer Applications (BCA)
+    year: "2011"
+
+# ------------------------------------------------------------
+# Certifications
+# ------------------------------------------------------------
+certifications:
+  - name: AWS Certified AI Practitioner
+    valid_until: "2029-01"
+  - name: Confluent Apache Kafka Fundamentals Accreditation
+    valid_until: no_expiry
+  - name: Oracle Cloud Infrastructure 2025 Certified AI Foundations Associate
+    valid_until: "2027-07"
+  - name: AWS Certified Cloud Practitioner
+    valid_until: "2027-05"
+
+# ------------------------------------------------------------
+# Languages spoken
+# ------------------------------------------------------------
+languages:
+  - language: English
+    level: Fluent (C1/C2)
+  - language: German
+    level: Basic (A1)
+
+# ------------------------------------------------------------
+# Job search preferences
+# Used by the agent to add context to the scoring prompt and
+# by the language filter for German-requirement detection.
+# ------------------------------------------------------------
+preferences:
+  roles:
+    - Senior Software Engineer
+    - Java Developer
+    - Backend Engineer
+    - Cloud Engineer
+    - Software Architect
+  job_types:
+    - Remote
+    - Hybrid
+  locations:
+    - Germany
+    - Darmstadt
+    - Frankfurt
+    - Hybrid (Germany-based)
+    - Remote (worldwide)
+  min_salary_eur: 85000           # optional, 0 to disable
+  exclude_german_required: true   # always true for this agent
+  seniority: Senior               # Junior / Mid / Senior / Lead
+
+# ------------------------------------------------------------
+# Autofill extras — additional fields required by some forms
+# ------------------------------------------------------------
+autofill:
+  years_of_experience: 12
+  highest_degree: Master
+  willing_to_relocate: false
+  expected_salary_eur: 85000      # used if salary field is present
+  notice_period_weeks: 12
+  portfolio_url: ""               # add portfolio URL if available
+  gender: male       # used only if form requires it
+  pronouns: ""                    # optional
