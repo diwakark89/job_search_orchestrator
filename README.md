@@ -5,7 +5,7 @@ This project exposes four integration surfaces for the Automated Job Hunt data p
 - a FastAPI HTTP API for table CRUD and orchestration
 - a Typer CLI for operator workflows
 - an MCP server for multi-site job scraping
-- a Python library split into `common`, `repository`, and `service` layers
+- a Python library split into `common`, `repository`, `service`, `pipeline`, `job_enricher`, `scraping`, and `mcp_interface` layers
 
 The pipeline manages these Supabase tables:
 
@@ -491,6 +491,52 @@ Run API tests only:
 ```bash
 uv run python -m pytest tests/test_api_server.py -v
 ```
+
+## Project Structure
+
+The `src/` tree is organized into focused, single-responsibility packages. Each large workflow is split into sibling modules so concerns can be tested in isolation.
+
+```text
+src/
+  api/                       FastAPI app + route handlers (routes/ grouped by domain)
+  common/                    PostgrestClient, SupabaseConfig, Pydantic row validators
+  repository/                SupabaseRepository (table-aware CRUD with validation dispatch)
+  service/
+    tables.py                Per-table service helpers
+    submit.py                /pipeline/submit row validation + selection
+    queries.py               Reusable query helpers
+    enricher.py              enrich_jobs() + enrich_jobs_by_ids() orchestration
+    enricher_persistence.py  patch_enriched_rows() batched DB writes
+    pipeline.py              run_pipeline() slim orchestrator (ingest → enrich)
+    stages/
+      ingest.py              run_stage_ingest() — validates and upserts SCRAPED rows
+      enrich.py              run_stage_enriched() / run_stage_enriched_detailed()
+    mappers/                 Scrape → jobs_final field mappers
+  pipeline/                  Pipeline-specific Pydantic/dataclass models + Typer CLI
+  job_enricher/              CopilotClient wrapper, prompts, extractors, Typer CLI
+  scraping/
+    requests.py              JobSearchRequest (Pydantic v2)
+    validators.py            Pure request-shape validators (sites, work mode, clamps)
+    defaults.py              EffectiveSearchParams + resolve_effective_request()
+    renderers.py             Markdown rendering for search results / errors
+    service.py               search_jobs() slim orchestrator
+    ports.py                 ScraperPort Protocol (adapter contract)
+    output.py / models.py /  Public re-export shims that delegate to adapters/
+      preferences.py
+    adapters/                Only place allowed to import jobspy_mcp_server.*
+      jobspy_adapter.py      JobspyAdapter (concrete ScraperPort impl)
+      jobspy_models.py       Vendored model re-exports
+      jobspy_output.py       Vendored output formatter re-exports
+      jobspy_preferences.py  Vendored preferences re-exports
+    cli.py                   Typer CLI (scraping search ...)
+  mcp_interface/             FastMCP server entry + serialization helpers
+  mcp_server/                MCP server entry-point glue
+  jobspy_mcp_server/         Vendored upstream package — DO NOT modify
+```
+
+### Adapter boundary (CON-001)
+
+The vendored `src/jobspy_mcp_server/` package must not be touched and must only be imported from `src/scraping/adapters/`. This is enforced by `tests/test_adapter_boundary.py`, which scans every `src/**/*.py` outside the allowed prefixes for `from jobspy_mcp_server` / `import jobspy_mcp_server`.
 
 ## Python Library
 
