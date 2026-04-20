@@ -77,8 +77,8 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Smoke test — jobspy-search --help
-        run: uv run jobspy-search --help
+      - name: Smoke test — job-search --help
+        run: uv run job-search --help
 
       - name: Smoke test — jobspy-mcp-server --help
         run: uv run jobspy-mcp-server --help

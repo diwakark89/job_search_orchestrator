@@ -6,8 +6,8 @@ Provides a direct command-line interface for searching jobs without MCP protocol
 overhead. Designed to be called by OpenClaw's exec tool or any shell.
 
 Usage:
-    jobspy-search "software engineer" --cities Munich,Berlin --country Germany --sites linkedin,indeed
-    jobspy-search "data scientist" --remote --results 5 --hours-old 48
+    job-search "software engineer" --cities Munich,Berlin --country Germany --sites linkedin,indeed
+    job-search "data scientist" --remote --results 5 --hours-old 48
 """
 
 import argparse
@@ -54,9 +54,9 @@ def _print_error_envelope(code: str, message: str, exit_code: int = 1) -> None:
 
 
 def main() -> None:
-    """Entry point for the jobspy-search CLI."""
+    """Entry point for the job-search CLI."""
     parser = argparse.ArgumentParser(
-        prog="jobspy-search",
+        prog="job-search",
         description="Search for jobs across multiple job boards",
     )
     parser.add_argument(

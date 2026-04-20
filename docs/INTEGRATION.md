@@ -14,7 +14,7 @@ It explains:
 
 This project exposes three supported integration interfaces:
 
-1. CLI commands via `main.py`
+1. CLI commands via `main.py` and installed scripts (`job-search`, `jobspy-mcp-server`)
 2. Python API via `common`, `repository`, `service`, `job_enricher`, and `pipeline`
 3. HTTP API via FastAPI server (`uvicorn`)
 
@@ -32,10 +32,17 @@ All interfaces operate against Supabase PostgREST using `SUPABASE_URL/rest/v1/{t
 The supported external surfaces are:
 
 - REST-style HTTP endpoints under `/db/{table}`
-- CLI commands under `python main.py db ...`
+- CLI commands under `python main.py job-manage ...` and `python main.py job-search ...`
+- Installed scripts `job-search` and `jobspy-mcp-server`
 - Python imports through `common`, `repository`, and `service`
 
 Legacy HTTP routes and the old CLI command group are no longer part of the supported contract.
+
+## 1.3 CLI Migration Note
+
+- `jobspy-search` was renamed to `job-search`.
+- `python main.py db ...`, `python main.py pipeline ...`, and `python main.py enricher ...` were consolidated under `python main.py job-manage ...`.
+- HTTP route names did not change.
 
 ## 2. Quick Start: Pipeline
 
@@ -48,20 +55,20 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8000
 1. Run full pipeline from CLI:
 
 ```bash
-uv run python main.py pipeline run payloads/jobs_raw.json --limit 50
+uv run python main.py job-manage pipeline run payloads/jobs_raw.json --limit 50
 ```
 
 1. Run full pipeline in dry-run mode:
 
 ```bash
-uv run python main.py pipeline run payloads/jobs_raw.json --limit 20 --dry-run
+uv run python main.py job-manage pipeline run payloads/jobs_raw.json --limit 20 --dry-run
 ```
 
 1. Run stages individually:
 
 ```bash
-uv run python main.py pipeline stage-ingest payloads/jobs_raw.json
-uv run python main.py pipeline stage-enriched --limit 20 --dry-run
+uv run python main.py job-manage pipeline stage-ingest payloads/jobs_raw.json
+uv run python main.py job-manage pipeline stage-enriched --limit 20 --dry-run
 ```
 
 1. Run full pipeline over HTTP:
@@ -165,18 +172,19 @@ pip install -r requirements.txt
 
 | Operation | CLI command | Python function(s) | Destination table(s) | HTTP equivalent | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Select rows | n/a | `repo.select_rows` | all tables | `GET /db/{table}` | Supports query filters, pagination, ordering |
-| Get one record | n/a | `repo.select_rows(..., limit=1)` | all tables | `GET /db/{table}/{record_id}` | Uses table primary key |
-| Upsert rows | `db upsert` | `repo.upsert_rows`, `upsert_jobs_final` | tables with conflict keys | `POST /db/{table}` | Defaults from `DEFAULT_CONFLICT_KEYS` |
-| Insert rows | `db insert` | `repo.insert_rows`, `insert_shared_links` | insert-only flows | `POST /db/{table}` | Used when no default upsert key exists |
-| Patch rows | `db patch` | `repo.patch_rows` | all tables | `PATCH /db/{table}/{record_id}` | |
-| Hard delete | `db delete`, `db delete-jobs-final` | `repo.delete_rows`, `delete_jobs_final_by_id` | all tables | `DELETE /db/{table}/{record_id}` | 404 may be treated as success |
-| Soft delete helper | `db soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
-| Get metrics | n/a | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
-| Enricher | `enricher enrich` | `service.enricher.enrich_jobs` | `jobs_final` | `POST /enricher/run` | Reads SCRAPED rows, patches ENRICHED |
-| Enricher by ids | n/a | `service.enricher.enrich_jobs_by_ids` | `jobs_final` | `POST /enricher/by-ids?dry_run=true\|false` | Re-enriches requested ids without changing job_status |
-| Submit jobs async | n/a | `service.pipeline.submit_jobs_for_enrichment`, `service.enricher.enrich_jobs_by_ids` | `jobs_final`, `shared_links` | `POST /pipeline/submit` | Upserts jobs by `job_url`, upserts `shared_links`, queues in-process enrichment for submitted ids |
-| Pipeline runner | `pipeline run`, `pipeline stage-*` | `service.pipeline.run_pipeline`, `run_stage_ingest`, `run_stage_enriched` | `jobs_final` | `POST /pipeline/*` | 2-stage orchestration |
+| Select rows | `job-manage table list` | `repo.select_rows` | all tables | `GET /db/{table}` | Supports query filters, pagination, ordering |
+| Get one record | `job-manage table get` | `repo.select_rows(..., limit=1)` | all tables | `GET /db/{table}/{record_id}` | Uses table primary key |
+| Upsert rows | `job-manage table upsert` | `repo.upsert_rows`, `upsert_jobs_final` | tables with conflict keys | `POST /db/{table}` | Defaults from `DEFAULT_CONFLICT_KEYS` |
+| Insert rows | `job-manage table insert` | `repo.insert_rows`, `insert_shared_links` | insert-only flows | `POST /db/{table}` | Used when no default upsert key exists |
+| Patch rows | `job-manage table patch` | `repo.patch_rows` | all tables | `PATCH /db/{table}/{record_id}` | |
+| Hard delete | `job-manage table delete`, `job-manage table delete-jobs-final` | `repo.delete_rows`, `delete_jobs_final_by_id` | all tables | `DELETE /db/{table}/{record_id}` | 404 may be treated as success |
+| Soft delete helper | `job-manage table soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
+| Get metrics | `job-manage pipeline metrics` | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
+| Enricher | `job-manage enricher enrich` | `service.enricher.enrich_jobs` | `jobs_final` | `POST /enricher/run` | Reads SCRAPED rows, patches ENRICHED |
+| Enricher by ids | `job-manage enricher by-ids` | `service.enricher.enrich_jobs_by_ids` | `jobs_final` | `POST /enricher/by-ids?dry_run=true\|false` | Re-enriches requested ids without changing job_status |
+| Submit jobs async | `job-manage pipeline submit` | `service.pipeline.submit_jobs_for_enrichment`, `service.enricher.enrich_jobs_by_ids` | `jobs_final`, `shared_links` | `POST /pipeline/submit` | Upserts jobs by `job_url`, upserts `shared_links`, queues enrichment ids |
+| Pipeline runner | `job-manage pipeline run`, `job-manage pipeline stage-*` | `service.pipeline.run_pipeline`, `run_stage_ingest`, `run_stage_enriched` | `jobs_final` | `POST /pipeline/*` | 2-stage orchestration |
+| Search jobs | `job-search` | `scraping.service.search_jobs` | n/a | n/a | Outputs JSON/markdown envelopes |
 
 Important constraints:
 
@@ -944,11 +952,15 @@ Supported request and response:
 ## 7. CLI Examples
 
 ```bash
-uv run python main.py db tables
-uv run python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
-uv run python main.py db patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
-uv run python main.py enricher enrich --limit 20 --dry-run
-uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
+uv run python main.py job-manage table tables
+uv run python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
+uv run python main.py job-manage table patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
+uv run python main.py job-manage pipeline submit payloads/jobs_raw.json
+uv run python main.py job-manage pipeline metrics
+uv run python main.py job-manage enricher by-ids --ids 550e8400-e29b-41d4-a716-446655440000
+uv run python main.py job-search "software engineer" --cities "Berlin,Munich" --sites "linkedin,indeed" --results 5
+uv run job-search "software engineer" --cities "Berlin" --sites "stepstone,xing" --job-type contract --results 1
+uv run jobspy-mcp-server --transport stdio
 ```
 
 ## 8. Python API

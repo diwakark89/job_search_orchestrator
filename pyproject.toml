@@ -30,7 +30,7 @@ dependencies = [
 
 [project.scripts]
 jobspy-mcp-server = "jobspy_mcp_server:main"
-jobspy-search = "jobspy_mcp_server.cli:main"
+job-search = "jobspy_mcp_server.cli:main"
 
 [project.optional-dependencies]
 dev = [

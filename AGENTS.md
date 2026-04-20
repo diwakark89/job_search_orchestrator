@@ -106,11 +106,10 @@ uv run jobspy-search "software engineer" --sites linkedin,indeed --results 5
 CLI examples:
 
 ```bash
-uv run python main.py db tables
-uv run python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
-uv run python main.py enricher enrich --limit 20 --dry-run
-uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
-uv run python main.py scraping search "software engineer" --sites linkedin,indeed --results 5
+uv run python main.py job-manage table tables
+uv run python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
+uv run python main.py job-manage enricher enrich --limit 20 --dry-run
+uv run python main.py job-manage pipeline run payloads/jobs_raw.json --limit 20
 ```
 
 Quick health checks:

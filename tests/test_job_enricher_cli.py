@@ -38,7 +38,7 @@ def test_cli_enrich_dry_run_success() -> None:
             database_rows_reported=0,
         )
 
-        result = runner.invoke(app, ["--limit", "4", "--dry-run"])
+        result = runner.invoke(app, ["enrich", "--limit", "4", "--dry-run"])
 
     assert result.exit_code == 0
     assert "processed=4" in result.stdout

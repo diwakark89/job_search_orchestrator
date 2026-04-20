@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich import print
@@ -11,7 +12,8 @@ from common.config import load_config
 from job_enricher.client_copilot import CopilotClient
 from job_enricher.config import load_copilot_config
 from repository.supabase import SupabaseRepository
-from service.pipeline import run_pipeline, run_stage_enriched, run_stage_ingest
+from service.pipeline import run_pipeline, run_stage_enriched, run_stage_ingest, submit_jobs_for_enrichment
+from service.tables import get_metrics
 
 from .models import PipelineResult, StageResult
 
@@ -43,6 +45,18 @@ def _load_rows(file: Path) -> list[dict]:
     if not isinstance(data, list):
         raise typer.BadParameter(f"Expected JSON array or object, got {type(data).__name__}")
     return data
+
+
+def _load_submit_rows(file: Path) -> list[dict[str, Any]]:
+    data = json.loads(file.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        jobs = data.get("jobs")
+        if isinstance(jobs, list):
+            return jobs
+        return [data]
+    if isinstance(data, list):
+        return data
+    raise typer.BadParameter(f"Expected JSON array or object, got {type(data).__name__}")
 
 
 @app.command("run")
@@ -91,3 +105,31 @@ def cmd_stage_enriched(
         dry_run=dry_run,
     )
     _print_stage(result)
+
+
+@app.command("submit")
+def cmd_submit(
+    file: Path = typer.Argument(..., help="JSON file with job rows (array or {\"jobs\": [...] })."),
+) -> None:
+    """Submit jobs for ingest and queue metadata for follow-up enrichment workflows."""
+    rows = _load_submit_rows(file)
+    repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+    result = submit_jobs_for_enrichment(repo=repo, rows=rows)
+    payload = {
+        "submitted_row_count": result.submitted_row_count,
+        "accepted": {"count": len(result.accepted_ids), "ids": result.accepted_ids},
+        "queued": {"count": len(result.accepted_ids), "ids": result.accepted_ids},
+        "rejected_row_indexes": result.rejected_row_indexes,
+        "errors": result.errors,
+        "jobs_final_row_count": result.jobs_final_row_count,
+        "shared_links_row_count": result.shared_links_row_count,
+    }
+    print(json.dumps(payload, indent=2, default=str))
+
+
+@app.command("metrics")
+def cmd_metrics() -> None:
+    """Show current pipeline status counts from jobs_final."""
+    repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+    metrics = get_metrics(repo=repo)
+    print(json.dumps(metrics, indent=2, default=str))

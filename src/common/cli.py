@@ -48,6 +48,23 @@ def _repo() -> SupabaseRepository:
     return SupabaseRepository(client=PostgrestClient(config=load_config()))
 
 
+def _parse_filter_options(filters: list[str] | None) -> dict[str, str] | None:
+    if not filters:
+        return None
+
+    parsed: dict[str, str] = {}
+    for item in filters:
+        if "=" not in item:
+            raise typer.BadParameter(f"Invalid --filter '{item}'. Expected key=value format.")
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise typer.BadParameter(f"Invalid --filter '{item}'. Filter key cannot be empty.")
+        parsed[key] = value
+
+    return parsed
+
+
 def _print_result(result: OperationResult) -> None:
     color = "green" if result.success else "red"
     print(
@@ -60,9 +77,68 @@ def _print_result(result: OperationResult) -> None:
         print(json.dumps(result.data, indent=2, default=str))
 
 
+def _print_select_result(table: str, rows: list[dict[str, Any]]) -> None:
+    print(json.dumps({"rows": rows, "count": len(rows), "table": table}, indent=2, default=str))
+
+
 def _ensure_table(table: str) -> None:
     if table not in VALID_TABLES:
         raise typer.BadParameter(f"Invalid table '{table}'. Supported: {sorted(VALID_TABLES)}")
+
+
+@app.command("list")
+def cmd_list(
+    table: str = typer.Option(..., "--table", help=TABLE_OPTION_HELP),
+    columns: str = typer.Option("*", "--columns", help="Comma-separated column names."),
+    limit: int = typer.Option(50, "--limit", min=1, help="Maximum rows to return."),
+    offset: int = typer.Option(0, "--offset", min=0, help="Rows to skip."),
+    order_by: str | None = typer.Option(None, "--order-by", help="Column used for ordering."),
+    ascending: bool = typer.Option(True, "--ascending/--descending", help="Sort ascending or descending."),
+    filter_items: list[str] | None = typer.Option(None, "--filter", help="Equality filter key=value. Repeatable."),
+) -> None:
+    _ensure_table(table)
+
+    repo = _repo()
+    filters = _parse_filter_options(filter_items)
+    result = repo.select_rows(
+        table=table,
+        columns=columns,
+        filters=filters,
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        ascending=ascending,
+    )
+    if not result.success:
+        _print_result(result)
+        raise typer.Exit(code=1)
+
+    rows = result.data if isinstance(result.data, list) else []
+    _print_select_result(table=table, rows=rows)
+
+
+@app.command("get")
+def cmd_get(
+    table: str = typer.Option(..., "--table", help=TABLE_OPTION_HELP),
+    record_id: str = typer.Option(..., "--id", help="Record id value."),
+    id_column: str = typer.Option("id", "--id-column", help="Primary key column name."),
+    columns: str = typer.Option("*", "--columns", help="Comma-separated column names."),
+) -> None:
+    _ensure_table(table)
+
+    repo = _repo()
+    result = repo.select_rows(
+        table=table,
+        columns=columns,
+        filters={id_column: record_id},
+        limit=1,
+    )
+    if not result.success:
+        _print_result(result)
+        raise typer.Exit(code=1)
+
+    rows = result.data if isinstance(result.data, list) else []
+    _print_select_result(table=table, rows=rows)
 
 
 @app.command("upsert")

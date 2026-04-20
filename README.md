@@ -66,11 +66,11 @@ COPILOT_BATCH_SIZE=20
 CLI examples:
 
 ```bash
-uv run python main.py db tables
-uv run python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
-uv run python main.py enricher enrich --limit 20 --dry-run
-uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
-uv run python main.py scraping search "software engineer" --sites linkedin,indeed --results 5
+uv run python main.py job-manage table tables
+uv run python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
+uv run python main.py job-manage enricher enrich --limit 20 --dry-run
+uv run python main.py job-manage pipeline run payloads/jobs_raw.json --limit 20
+uv run python main.py job-search "software engineer" --sites linkedin,indeed --results 5
 ```
 
 Start the server:
@@ -89,21 +89,21 @@ Installed-script compatibility for the merged MCP package:
 
 ```bash
 uv run jobspy-mcp-server
-uv run jobspy-search "software engineer" --sites linkedin,indeed --results 5
+uv run job-search "software engineer" --sites linkedin,indeed --results 5
 ```
 
 ## Scraping Compatibility Contract
 
 The merged repository preserves job scraping core functionality without changing external usage patterns:
 
-- CLI access remains available through `jobspy-search`.
+- CLI access remains available through `job-search`.
 - MCP server access remains available through `jobspy-mcp-server` and `python mcp_server.py`.
 - Existing users can continue scraping through either interface without changing payload semantics.
 
 Compatibility smoke-check commands:
 
 ```bash
-uv run jobspy-search --help
+uv run job-search --help
 uv run jobspy-mcp-server --help
 python mcp_server.py --help
 ```
@@ -474,16 +474,18 @@ curl -X POST http://localhost:8000/db/shared-links \
 
 ## CLI
 
-The CLI uses the `db`, `enricher`, `pipeline`, and `scraping` groups.
+The CLI uses top-level `job-manage` and `job-search` commands.
+
+`job-manage` contains `table`, `pipeline`, and `enricher` subgroups.
 
 Examples:
 
 ```bash
-uv run python main.py db soft-delete --table jobs_final --record-id 550e8400-e29b-41d4-a716-446655440000
-uv run python main.py db patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
-uv run python main.py enricher enrich --limit 50
-uv run python main.py pipeline stage-enriched --limit 20 --dry-run
-uv run python main.py scraping search "android engineer" --cities Berlin,Munich --sites linkedin,stepstone
+uv run python main.py job-manage table soft-delete --table jobs_final --record-id 550e8400-e29b-41d4-a716-446655440000
+uv run python main.py job-manage table patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
+uv run python main.py job-manage enricher enrich --limit 50
+uv run python main.py job-manage pipeline stage-enriched --limit 20 --dry-run
+uv run python main.py job-search "android engineer" --cities Berlin,Munich --sites linkedin,stepstone
 ```
 
 Run API tests only:
