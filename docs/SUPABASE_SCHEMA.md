@@ -58,21 +58,6 @@ SCRAPED  →  ENRICHED  →  (APPLIED | REJECTED | SAVED)
 
 ---
 
-## Table: `shared_links`
-
-Tracks public-facing job URLs extracted from shared sources.
-
-| Column | Type | Nullable | Notes |
-|--------|------|----------|-------|
-| `id` | `uuid` | No | Primary key |
-| `url` | `text` | No | Unique; upsert conflict key |
-| `source` | `text` | Yes | |
-| `saved_at` | `timestamptz` | Yes | |
-| `approved_at` | `timestamptz` | Yes | |
-| `approval` | `text` | Yes | |
-
----
-
 ## Scrape-Origin Field Mapping
 
 When job rows are created by the scraping pipeline (i.e. via

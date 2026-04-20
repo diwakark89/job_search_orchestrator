@@ -28,4 +28,3 @@ class SubmitJobsResult:
     rejected_row_indexes: list[int] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     jobs_final_row_count: int = 0
-    shared_links_row_count: int = 0

@@ -11,10 +11,6 @@ def upsert_jobs_final(repo: SupabaseRepository, rows: list[dict]) -> OperationRe
     return repo.upsert_rows(table="jobs_final", rows=rows, on_conflict="id")
 
 
-def insert_shared_links(repo: SupabaseRepository, rows: list[dict]) -> OperationResult:
-    return repo.upsert_rows(table="shared_links", rows=rows, on_conflict="url")
-
-
 def delete_jobs_final_by_id(repo: SupabaseRepository, record_id: str) -> OperationResult:
     return repo.delete_rows(
         table="jobs_final",

@@ -10,7 +10,6 @@ from .constants import (
     DECISION_VALUES,
     JOB_STATUS_VALUES,
     JOB_TYPE_VALUES,
-    SHARED_LINK_SOURCES,
     WORK_MODE_VALUES,
     normalize_job_status,
     normalize_job_type,
@@ -110,20 +109,6 @@ class JobsFinalRow(BaseModel):
         return value
 
 
-class SharedLinkRow(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    url: str
-    source: str = "android-share-intent"
-
-    @field_validator("source")
-    @classmethod
-    def validate_source(cls, value: str) -> str:
-        if value not in SHARED_LINK_SOURCES:
-            raise ValueError(f"Invalid source '{value}'.")
-        return value
-
-
 def _validate_rows(
     rows: list[dict[str, Any]],
     model: type[BaseModel],
@@ -147,7 +132,3 @@ def validate_jobs_final_rows(
     preserve_fields: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     return _validate_rows(rows, JobsFinalRow, ("saved_at", "modified_at", "approved_at"), preserve_fields)
-
-
-def validate_shared_links_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return _validate_rows(rows, SharedLinkRow, ())

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 DEFAULT_CONFLICT_KEYS: dict[str, str] = {
     "jobs_final": "id",
-    "shared_links": "url",
 }
 
 VALID_TABLES: set[str] = {
     "jobs_final",
-    "shared_links",
 }
 
 JOB_STATUS_VALUES: set[str] = {
@@ -44,12 +42,6 @@ def normalize_job_status(value: str) -> str:
     if alias is not None:
         return alias
     return value
-
-SHARED_LINK_SOURCES: set[str] = {
-    "android-share-intent",
-    "web-extension",
-    "manual",
-}
 
 JOB_TYPE_VALUES: set[str] = {
     "fulltime",

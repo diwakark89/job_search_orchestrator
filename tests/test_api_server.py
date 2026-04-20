@@ -35,7 +35,6 @@ def test_tables_endpoint_lists_supported_tables() -> None:
     payload = response.json()
     assert "jobs_final" in payload["tables"]
     assert payload["default_conflict_keys"]["jobs_final"] == "id"
-    assert payload["default_conflict_keys"]["shared_links"] == "url"
 
 
 def test_db_list_rows_success(monkeypatch) -> None:

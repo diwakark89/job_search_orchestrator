@@ -213,12 +213,11 @@ def pipeline_submit(payload: PipelineSubmitRequest) -> PipelineSubmitResponse:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     logger.info(
-        "POST /pipeline/submit service_result submit_request_id=%s accepted=%s rejected=%s jobs_final_rows=%s shared_links_rows=%s",
+        "POST /pipeline/submit service_result submit_request_id=%s accepted=%s rejected=%s jobs_final_rows=%s",
         submit_request_id,
         len(result.accepted_ids),
         len(result.rejected_row_indexes),
         result.jobs_final_row_count,
-        result.shared_links_row_count,
     )
     logger.debug(
         "POST /pipeline/submit accepted_ids submit_request_id=%s ids=%s",
@@ -248,7 +247,6 @@ def pipeline_submit(payload: PipelineSubmitRequest) -> PipelineSubmitResponse:
         rejected_row_indexes=result.rejected_row_indexes,
         errors=result.errors,
         jobs_final_row_count=result.jobs_final_row_count,
-        shared_links_row_count=result.shared_links_row_count,
     )
 
 

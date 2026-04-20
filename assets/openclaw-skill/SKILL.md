@@ -1,5 +1,5 @@
 ---
-name: jobspy_search
+name: jobspy-search
 description: Search for jobs across 9 job boards (LinkedIn, Indeed, Glassdoor, ZipRecruiter, Google, Bayt, Naukri, Stepstone, Xing). Use when the user asks about job listings, career opportunities, open positions, or hiring.
 metadata:
   {

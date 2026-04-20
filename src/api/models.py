@@ -110,7 +110,6 @@ class PipelineSubmitResponse(BaseModel):
     rejected_row_indexes: list[int]
     errors: list[str]
     jobs_final_row_count: int
-    shared_links_row_count: int
 
 
 class PipelineStageIngestRequest(BaseModel):

@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from common.validators import (
     validate_jobs_final_rows,
-    validate_shared_links_rows,
 )
 
 
@@ -178,30 +177,3 @@ class TestJobsFinalValidator:
             validate_jobs_final_rows(rows)
 
 
-# ── shared_links ──────────────────────────────────────────────────────────────
-
-class TestSharedLinksValidator:
-    def test_minimal_valid_row(self):
-        rows = [{"url": "https://www.linkedin.com/jobs/view/123"}]
-        result = validate_shared_links_rows(rows)
-        assert result[0]["source"] == "android-share-intent"
-        assert result[0]["url"] == "https://www.linkedin.com/jobs/view/123"
-
-    def test_valid_source_web_extension(self):
-        rows = [{"url": "https://example.com", "source": "web-extension"}]
-        validate_shared_links_rows(rows)
-
-    def test_invalid_source_raises(self):
-        rows = [{"url": "https://example.com", "source": "telegram-bot"}]
-        with pytest.raises(Exception):
-            validate_shared_links_rows(rows)
-
-    def test_missing_url_raises(self):
-        rows = [{"source": "manual"}]
-        with pytest.raises(Exception):
-            validate_shared_links_rows(rows)
-
-    def test_extra_field_rejected(self):
-        rows = [{"url": "https://example.com", "extra": "bad"}]
-        with pytest.raises(Exception):
-            validate_shared_links_rows(rows)

@@ -77,7 +77,6 @@ def test_pipeline_submit_success_queues_only_submitted_ids(monkeypatch) -> None:
         rejected_row_indexes=[2],
         errors=["row[2]: job_url is required."],
         jobs_final_row_count=2,
-        shared_links_row_count=2,
     )
     monkeypatch.setattr(pipeline_route, "PostgrestClient", MagicMock(return_value=object()))
     monkeypatch.setattr(pipeline_route, "SupabaseRepository", MagicMock(return_value=object()))
@@ -98,7 +97,6 @@ def test_pipeline_submit_success_queues_only_submitted_ids(monkeypatch) -> None:
     assert payload["rejected_row_indexes"] == [2]
     assert payload["errors"] == ["row[2]: job_url is required."]
     assert payload["jobs_final_row_count"] == 2
-    assert payload["shared_links_row_count"] == 2
     call_kwargs = thread_factory.call_args
     assert call_kwargs.kwargs["target"] == pipeline_route._run_submitted_jobs_enrichment
     assert call_kwargs.kwargs["args"][0] == ["id-1", "id-2"]

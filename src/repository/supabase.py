@@ -6,7 +6,6 @@ from common.client import OperationResult, PostgrestClient
 from common.constants import DEFAULT_CONFLICT_KEYS, VALID_TABLES
 from common.validators import (
     validate_jobs_final_rows,
-    validate_shared_links_rows,
 )
 
 
@@ -27,8 +26,6 @@ class SupabaseRepository:
     ) -> list[dict[str, Any]]:
         if table == "jobs_final":
             return validate_jobs_final_rows(rows, preserve_fields=preserve_fields)
-        if table == "shared_links":
-            return validate_shared_links_rows(rows)
         raise ValueError(f"No validator configured for table '{table}'.")
 
     def select_rows(

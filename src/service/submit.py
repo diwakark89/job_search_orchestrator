@@ -1,7 +1,7 @@
 """Submit-jobs-for-enrichment workflow.
 
-Validates raw scrape rows, upserts them into ``jobs_final``, syncs
-``shared_links``, and returns a structured ``SubmitJobsResult``.
+Validates raw scrape rows, upserts them into ``jobs_final``,
+and returns a structured ``SubmitJobsResult``.
 """
 from __future__ import annotations
 
@@ -11,8 +11,6 @@ from typing import Any
 from common.validators import JobsFinalRow, normalize_timestamp_fields
 from pipeline.models import SubmitJobsResult
 from repository.supabase import SupabaseRepository
-
-from .tables import insert_shared_links
 
 _SUBMIT_TIMESTAMP_FIELDS = ("saved_at", "modified_at", "approved_at")
 
@@ -131,26 +129,10 @@ def submit_jobs_for_enrichment(
     accepted_ids, persisted_urls = _select_submitted_jobs(repo=repo, job_urls=accepted_urls)
 
     logger.info(
-        "submit shared_links upsert starting url_count=%s",
-        len(persisted_urls),
-    )
-    shared_links_result = insert_shared_links(
-        repo=repo,
-        rows=[{"url": job_url} for job_url in persisted_urls],
-    )
-    if not shared_links_result.success:
-        raise RuntimeError(shared_links_result.error or "Failed to upsert shared_links rows.")
-    logger.info(
-        "submit shared_links upsert completed row_count=%s",
-        shared_links_result.row_count,
-    )
-
-    logger.info(
-        "submit_jobs_for_enrichment completed accepted_ids=%s rejected=%s jobs_final_rows=%s shared_links_rows=%s",
+        "submit_jobs_for_enrichment completed accepted_ids=%s rejected=%s jobs_final_rows=%s",
         len(accepted_ids),
         len(rejected_row_indexes),
         jobs_final_result.row_count,
-        shared_links_result.row_count,
     )
     logger.debug("submit accepted_ids=%s", accepted_ids)
 
@@ -161,7 +143,6 @@ def submit_jobs_for_enrichment(
         rejected_row_indexes=rejected_row_indexes,
         errors=errors,
         jobs_final_row_count=jobs_final_result.row_count,
-        shared_links_row_count=shared_links_result.row_count,
     )
 
 

@@ -22,7 +22,6 @@ router = APIRouter(prefix="/db", tags=["tables"])
 
 TABLE_CONFIG: dict[str, tuple[str, str]] = {
     "jobs-final": ("jobs_final", "id"),
-    "shared-links": ("shared_links", "id"),
 }
 
 _SOFT_DELETE_TABLES: dict[str, str] = {

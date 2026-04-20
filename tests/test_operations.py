@@ -14,7 +14,6 @@ from common.config import SupabaseConfig
 from repository.supabase import SupabaseRepository
 from service.tables import (
     delete_jobs_final_by_id,
-    insert_shared_links,
     soft_delete_jobs_final,
     upsert_jobs_final,
 )
@@ -71,13 +70,6 @@ class TestRepositoryUpsertRows:
         with pytest.raises(ValueError, match="Unsupported table"):
             repo.upsert_rows("nonexistent_table", [{"id": "x"}])
 
-    def test_shared_links_defaults_conflict_to_url(self):
-        client = _mock_client(_ok())
-        repo = SupabaseRepository(client)
-        repo.upsert_rows("shared_links", [{"url": "https://example.com"}])
-        _, kwargs = client.upsert.call_args
-        assert kwargs["on_conflict"] == "url"
-
     def test_invalid_payload_raises_before_network_call(self):
         client = _mock_client(_ok())
         repo = SupabaseRepository(client)
@@ -86,23 +78,6 @@ class TestRepositoryUpsertRows:
             repo.upsert_rows("jobs_final", rows)
         client.upsert.assert_not_called()
 
-
-class TestRepositoryInsertRows:
-    def test_shared_links_insert_called(self):
-        client = _mock_client(_ok(table="shared_links", operation="insert"))
-        repo = SupabaseRepository(client)
-        rows = [{"url": "https://linkedin.com/jobs/view/999"}]
-        result = repo.insert_rows("shared_links", rows)
-        client.insert.assert_called_once()
-        assert result.success is True
-
-    def test_invalid_shared_link_raises_before_call(self):
-        client = _mock_client(_ok())
-        repo = SupabaseRepository(client)
-        rows = [{"url": "https://example.com", "source": "bad-source"}]
-        with pytest.raises(Exception):
-            repo.insert_rows("shared_links", rows)
-        client.insert.assert_not_called()
 
 
 class TestRepositoryPatchRows:
@@ -138,16 +113,6 @@ class TestTableWrappers:
             table="jobs_final",
             rows=[{"id": "aaaaaaaa-0000-0000-0000-000000000001"}],
             on_conflict="id",
-        )
-        assert result.success is True
-
-    def test_insert_shared_links(self):
-        repo = _mock_repo(_ok(table="shared_links", operation="upsert"))
-        result = insert_shared_links(repo, [{"url": "https://example.com/job/1"}])
-        repo.upsert_rows.assert_called_once_with(
-            table="shared_links",
-            rows=[{"url": "https://example.com/job/1"}],
-            on_conflict="url",
         )
         assert result.success is True
 
