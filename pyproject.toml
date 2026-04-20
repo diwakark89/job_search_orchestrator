@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.scripts]
-jobspy-mcp-server = "jobspy_mcp_server:main"
-job-search = "jobspy_mcp_server.cli:main"
+job-search-mcp-server = "job_search_mcp_server:main"
+job-search = "job_search_mcp_server.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -48,7 +48,7 @@ packages = [
     "src/api",
     "src/common",
     "src/job_enricher",
-    "src/jobspy_mcp_server",
+    "src/job_search_mcp_server",
     "src/mcp_interface",
     "src/mcp_server",
     "src/pipeline",

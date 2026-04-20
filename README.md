@@ -17,7 +17,7 @@ It also includes:
 - an enricher that reads `jobs_final` rows where `job_status=SCRAPED` and patches enrichment data plus `job_status=ENRICHED` directly on `jobs_final`
 - a submit endpoint that upserts incoming jobs by `job_url`, updates `shared_links`, and queues in-process enrichment for those submitted jobs
 - a 2-stage pipeline runner: `ingest → enrich`
-- a merged scraping domain and vendored `jobspy_mcp_server` compatibility package for job-board search and MCP tooling
+- a merged scraping domain and vendored `job_search_mcp_server` compatibility package for job-board search and MCP tooling
 
 ## Integration Guide
 
@@ -88,7 +88,7 @@ uv run python mcp_server.py
 Installed-script compatibility for the merged MCP package:
 
 ```bash
-uv run jobspy-mcp-server
+uv run job-search-mcp-server
 uv run job-search "software engineer" --sites linkedin,indeed --results 5
 ```
 
@@ -97,14 +97,14 @@ uv run job-search "software engineer" --sites linkedin,indeed --results 5
 The merged repository preserves job scraping core functionality without changing external usage patterns:
 
 - CLI access remains available through `job-search`.
-- MCP server access remains available through `jobspy-mcp-server` and `python mcp_server.py`.
+- MCP server access remains available through `job-search-mcp-server` and `python mcp_server.py`.
 - Existing users can continue scraping through either interface without changing payload semantics.
 
 Compatibility smoke-check commands:
 
 ```bash
 uv run job-search --help
-uv run jobspy-mcp-server --help
+uv run job-search-mcp-server --help
 python mcp_server.py --help
 ```
 
@@ -525,20 +525,20 @@ src/
     ports.py                 ScraperPort Protocol (adapter contract)
     output.py / models.py /  Public re-export shims that delegate to adapters/
       preferences.py
-    adapters/                Only place allowed to import jobspy_mcp_server.*
-      jobspy_adapter.py      JobspyAdapter (concrete ScraperPort impl)
-      jobspy_models.py       Vendored model re-exports
-      jobspy_output.py       Vendored output formatter re-exports
-      jobspy_preferences.py  Vendored preferences re-exports
+    adapters/                Only place allowed to import job_search_mcp_server.*
+      job_search_adapter.py      JobSearchMcpAdapter (concrete ScraperPort impl)
+      job_search_models.py       Vendored model re-exports
+      job_search_output.py       Vendored output formatter re-exports
+      job_search_preferences.py  Vendored preferences re-exports
     cli.py                   Typer CLI (scraping search ...)
   mcp_interface/             FastMCP server entry + serialization helpers
   mcp_server/                MCP server entry-point glue
-  jobspy_mcp_server/         Vendored upstream package — DO NOT modify
+  job_search_mcp_server/         Vendored upstream package — DO NOT modify
 ```
 
 ### Adapter boundary (CON-001)
 
-The vendored `src/jobspy_mcp_server/` package must not be touched and must only be imported from `src/scraping/adapters/`. This is enforced by `tests/test_adapter_boundary.py`, which scans every `src/**/*.py` outside the allowed prefixes for `from jobspy_mcp_server` / `import jobspy_mcp_server`.
+The vendored `src/job_search_mcp_server/` package must not be touched and must only be imported from `src/scraping/adapters/`. This is enforced by `tests/test_adapter_boundary.py`, which scans every `src/**/*.py` outside the allowed prefixes for `from job_search_mcp_server` / `import job_search_mcp_server`.
 
 ## Python Library
 

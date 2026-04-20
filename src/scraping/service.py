@@ -4,14 +4,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .adapters.jobspy_adapter import JobspyAdapter
+from .adapters.job_search_adapter import JobSearchMcpAdapter
 from .defaults import resolve_effective_request
 from .ports import ScraperPort
 from .preferences import derive_runtime_defaults, load_search_preferences
 from .renderers import render_search_error, render_search_result
 from .requests import JobSearchRequest
 
-_DEFAULT_ADAPTER: ScraperPort = JobspyAdapter()
+_DEFAULT_ADAPTER: ScraperPort = JobSearchMcpAdapter()
 
 
 @dataclass(frozen=True)

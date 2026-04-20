@@ -1,5 +1,5 @@
 ---
-goal: Harden jobspy-mcp-server for low-volume personal daily scraping with Supabase-backed dedup
+goal: Harden job-search-mcp-server for low-volume personal daily scraping with Supabase-backed dedup
 version: 1.0
 date_created: 2026-04-19
 last_updated: 2026-04-19
@@ -28,8 +28,8 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 - **CON-003**: All anti-detection changes must be opt-in via existing `guardrails.py` constants
 - **GUD-001**: Preserve backward compatibility of the `scrape_jobs_tool` MCP signature
 - **GUD-002**: All new behavior toggleable through env vars or guardrail constants
-- **PAT-001**: Follow ADR-001 (centralize knobs in [`guardrails.py`](jobspy_mcp_server/guardrails.py))
-- **PAT-002**: Follow existing env-var pattern from [`preferences.py`](jobspy_mcp_server/preferences.py#L101)
+- **PAT-001**: Follow ADR-001 (centralize knobs in [`guardrails.py`](job_search_mcp_server/guardrails.py))
+- **PAT-002**: Follow existing env-var pattern from [`preferences.py`](job_search_mcp_server/preferences.py#L101)
 
 ## 2. Implementation Steps
 
@@ -39,10 +39,10 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | In [`guardrails.py`](jobspy_mcp_server/guardrails.py): set `RESULTS_WANTED_DEFAULT = 25`, add `INTER_SITE_DELAY_SECONDS_DEFAULT = 60`, add `SEQUENTIAL_SITES_DEFAULT = True`, add `DEDUP_ENABLED_DEFAULT = True` | | |
-| TASK-002 | In [`guardrails.py`](jobspy_mcp_server/guardrails.py): change `SITES_DEFAULT` from `["linkedin"]` to `["linkedin", "stepstone", "xing", "google"]` | | |
-| TASK-003 | In [`guardrails.py`](jobspy_mcp_server/guardrails.py): keep `HOURS_OLD_DEFAULT = 24` (already correct); add `COUNTRY_INDEED_DEFAULT = "germany"` | | |
-| TASK-004 | Add module docstring note in [`guardrails.py`](jobspy_mcp_server/guardrails.py) explaining personal-use profile | | |
+| TASK-001 | In [`guardrails.py`](job_search_mcp_server/guardrails.py): set `RESULTS_WANTED_DEFAULT = 25`, add `INTER_SITE_DELAY_SECONDS_DEFAULT = 60`, add `SEQUENTIAL_SITES_DEFAULT = True`, add `DEDUP_ENABLED_DEFAULT = True` | | |
+| TASK-002 | In [`guardrails.py`](job_search_mcp_server/guardrails.py): change `SITES_DEFAULT` from `["linkedin"]` to `["linkedin", "stepstone", "xing", "google"]` | | |
+| TASK-003 | In [`guardrails.py`](job_search_mcp_server/guardrails.py): keep `HOURS_OLD_DEFAULT = 24` (already correct); add `COUNTRY_INDEED_DEFAULT = "germany"` | | |
+| TASK-004 | Add module docstring note in [`guardrails.py`](job_search_mcp_server/guardrails.py) explaining personal-use profile | | |
 
 ### Implementation Phase 2: Sequential Site Execution with Inter-Site Delay
 
@@ -50,7 +50,7 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-005 | In [`jobspy_scrapers/__init__.py`](jobspy_mcp_server/jobspy_scrapers/__init__.py) `scrape_jobs()`: detect `SEQUENTIAL_SITES_DEFAULT` flag; when true, iterate sites in a loop instead of submitting all to `ThreadPoolExecutor` simultaneously | | |
+| TASK-005 | In [`job_search_scrapers/__init__.py`](job_search_mcp_server/job_search_scrapers/__init__.py) `scrape_jobs()`: detect `SEQUENTIAL_SITES_DEFAULT` flag; when true, iterate sites in a loop instead of submitting all to `ThreadPoolExecutor` simultaneously | | |
 | TASK-006 | Between sites, `time.sleep(random.uniform(INTER_SITE_DELAY_SECONDS_DEFAULT, INTER_SITE_DELAY_SECONDS_DEFAULT * 1.5))` | | |
 | TASK-007 | Allow per-city parallelism within a single site to remain (since cities are different search params), but cap `ThreadPoolExecutor` `max_workers=2` per site | | |
 | TASK-008 | Log start/end timestamp per site at INFO so cron runs are auditable | | |
@@ -61,11 +61,11 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-009 | Update hardcoded `user-agent` in [`linkedin/constant.py`](jobspy_mcp_server/jobspy_scrapers/linkedin/constant.py) to current Chrome stable (138+) on Windows | | |
+| TASK-009 | Update hardcoded `user-agent` in [`linkedin/constant.py`](job_search_mcp_server/job_search_scrapers/linkedin/constant.py) to current Chrome stable (138+) on Windows | | |
 | TASK-010 | Audit `constant.py` for `indeed`, `glassdoor`, `google`, `stepstone`, `xing`, `naukri`, `bayt`, `ziprecruiter` and refresh any UAs older than Chrome 130 | | |
-| TASK-011 | In LinkedIn scraper init in [`linkedin/__init__.py`](jobspy_mcp_server/jobspy_scrapers/linkedin/__init__.py): change `clear_cookies=True` → `clear_cookies=False` | | |
-| TASK-012 | Add `COOKIE_JAR_DIR` env var (default `~/.jobspy_cookies/`); persist `session.cookies` to `<site>.json` after scrape and reload on next run via `requests.cookies.RequestsCookieJar` | | |
-| TASK-013 | Add `sec-fetch-dest`, `sec-fetch-mode`, `sec-fetch-site`, `sec-ch-ua`, `sec-ch-ua-mobile`, `sec-ch-ua-platform` to [`linkedin/constant.py`](jobspy_mcp_server/jobspy_scrapers/linkedin/constant.py) headers dict | | |
+| TASK-011 | In LinkedIn scraper init in [`linkedin/__init__.py`](job_search_mcp_server/job_search_scrapers/linkedin/__init__.py): change `clear_cookies=True` → `clear_cookies=False` | | |
+| TASK-012 | Add `COOKIE_JAR_DIR` env var (default `~/.job-search_cookies/`); persist `session.cookies` to `<site>.json` after scrape and reload on next run via `requests.cookies.RequestsCookieJar` | | |
+| TASK-013 | Add `sec-fetch-dest`, `sec-fetch-mode`, `sec-fetch-site`, `sec-ch-ua`, `sec-ch-ua-mobile`, `sec-ch-ua-platform` to [`linkedin/constant.py`](job_search_mcp_server/job_search_scrapers/linkedin/constant.py) headers dict | | |
 
 ### Implementation Phase 4: Supabase-Based Dedup Filter
 
@@ -73,11 +73,11 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-014 | Create new module `jobspy_mcp_server/dedup.py` with class `SupabaseDedupClient` | | |
+| TASK-014 | Create new module `job_search_mcp_server/dedup.py` with class `SupabaseDedupClient` | | |
 | TASK-015 | `SupabaseDedupClient.__init__()` reads `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_JOBS_TABLE` (default `jobs_raw`) from env; raise `RuntimeError` if missing AND dedup enabled | | |
 | TASK-016 | Implement `fetch_known_keys(window_days: int = 30) -> set[str]` returning union of `external_id` and `job_url` values where `created_at >= now() - window_days` and `is_deleted = false`. Use Supabase REST `GET /rest/v1/jobs_raw?select=external_id,job_url&created_at=gte.<iso>&is_deleted=eq.false&limit=10000` via `httpx` (no extra dep beyond what's installed) | | |
 | TASK-017 | Implement `is_duplicate(job: dict, known: set[str]) -> bool` checking both `job["job_url"]` and `job["external_id"]` (or scraper-specific id field) against `known` | | |
-| TASK-018 | In [`server.py`](jobspy_mcp_server/server.py) `scrape_jobs_tool()`: after `build_jobs_json_payload()`, if `DEDUP_ENABLED_DEFAULT`, instantiate `SupabaseDedupClient`, call `fetch_known_keys()` once per tool invocation, filter `jobs` list, and add `dedup_summary` to the success envelope (`total_scraped`, `duplicates_removed`, `new_returned`) | | |
+| TASK-018 | In [`server.py`](job_search_mcp_server/server.py) `scrape_jobs_tool()`: after `build_jobs_json_payload()`, if `DEDUP_ENABLED_DEFAULT`, instantiate `SupabaseDedupClient`, call `fetch_known_keys()` once per tool invocation, filter `jobs` list, and add `dedup_summary` to the success envelope (`total_scraped`, `duplicates_removed`, `new_returned`) | | |
 | TASK-019 | Add graceful degradation: if Supabase fetch fails, log WARNING and return all jobs (do not block the run) | | |
 | TASK-020 | Cache `known_keys` in-process for the lifetime of one tool call; do not refetch per site | | |
 
@@ -87,8 +87,8 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-021 | Add `jobspy_mcp_server/daily_run.py` script: loads preferences, calls `scrape_jobs()` directly (bypassing MCP transport), pipes results to stdout JSON for the sister storage project to ingest | | |
-| TASK-022 | Add `pyproject.toml` console script entry: `jobspy-daily = "jobspy_mcp_server.daily_run:main"` | | |
+| TASK-021 | Add `job_search_mcp_server/daily_run.py` script: loads preferences, calls `scrape_jobs()` directly (bypassing MCP transport), pipes results to stdout JSON for the sister storage project to ingest | | |
+| TASK-022 | Add `pyproject.toml` console script entry: `job-search-daily = "job_search_mcp_server.daily_run:main"` | | |
 | TASK-023 | Document Windows Task Scheduler setup in repo README (cron equivalent for non-Windows) — daily at 04:00 local | | |
 
 ## 3. Alternatives
@@ -108,15 +108,15 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 
 ## 5. Files
 
-- **FILE-001**: [`jobspy_mcp_server/guardrails.py`](jobspy_mcp_server/guardrails.py) — new constants for personal-use profile
-- **FILE-002**: [`jobspy_mcp_server/jobspy_scrapers/__init__.py`](jobspy_mcp_server/jobspy_scrapers/__init__.py) — sequential site loop + inter-site delay
-- **FILE-003**: [`jobspy_mcp_server/jobspy_scrapers/linkedin/__init__.py`](jobspy_mcp_server/jobspy_scrapers/linkedin/__init__.py) — cookie persistence flag
-- **FILE-004**: [`jobspy_mcp_server/jobspy_scrapers/linkedin/constant.py`](jobspy_mcp_server/jobspy_scrapers/linkedin/constant.py) — refreshed UA + sec-* headers
+- **FILE-001**: [`job_search_mcp_server/guardrails.py`](job_search_mcp_server/guardrails.py) — new constants for personal-use profile
+- **FILE-002**: [`job_search_mcp_server/job_search_scrapers/__init__.py`](job_search_mcp_server/job_search_scrapers/__init__.py) — sequential site loop + inter-site delay
+- **FILE-003**: [`job_search_mcp_server/job_search_scrapers/linkedin/__init__.py`](job_search_mcp_server/job_search_scrapers/linkedin/__init__.py) — cookie persistence flag
+- **FILE-004**: [`job_search_mcp_server/job_search_scrapers/linkedin/constant.py`](job_search_mcp_server/job_search_scrapers/linkedin/constant.py) — refreshed UA + sec-* headers
 - **FILE-005**: Other `*/constant.py` UA refreshes as identified in TASK-010
-- **FILE-006**: `jobspy_mcp_server/dedup.py` — **NEW** Supabase dedup client
-- **FILE-007**: [`jobspy_mcp_server/server.py`](jobspy_mcp_server/server.py) — wire dedup filter into `scrape_jobs_tool`
-- **FILE-008**: `jobspy_mcp_server/daily_run.py` — **NEW** standalone daily entry point
-- **FILE-009**: [`pyproject.toml`](pyproject.toml) — register `jobspy-daily` console script
+- **FILE-006**: `job_search_mcp_server/dedup.py` — **NEW** Supabase dedup client
+- **FILE-007**: [`job_search_mcp_server/server.py`](job_search_mcp_server/server.py) — wire dedup filter into `scrape_jobs_tool`
+- **FILE-008**: `job_search_mcp_server/daily_run.py` — **NEW** standalone daily entry point
+- **FILE-009**: [`pyproject.toml`](pyproject.toml) — register `job-search-daily` console script
 - **FILE-010**: [`README.md`](README.md) — daily scheduling instructions
 
 ## 6. Testing
@@ -124,7 +124,7 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 - **TEST-001**: Unit test `test/test_dedup.py::test_fetch_known_keys_returns_union_of_external_id_and_job_url` — mock `httpx.get`, assert returned set
 - **TEST-002**: Unit test `test/test_dedup.py::test_is_duplicate_matches_either_key`
 - **TEST-003**: Unit test `test/test_dedup.py::test_graceful_degradation_on_supabase_failure` — mock `httpx.HTTPError`, assert empty set returned and warning logged
-- **TEST-004**: Update existing `test/test_jobspy_mcp.py` guardrail tests to assert new defaults (`RESULTS_WANTED_DEFAULT == 25`, `SITES_DEFAULT == [...]`)
+- **TEST-004**: Update existing `test/test_job_search_mcp.py` guardrail tests to assert new defaults (`RESULTS_WANTED_DEFAULT == 25`, `SITES_DEFAULT == [...]`)
 - **TEST-005**: Integration test `test/test_server.py::test_dedup_filters_known_jobs` — mock scraper to return 3 jobs, mock Supabase to return 1 known `job_url`, assert envelope contains 2 jobs and `dedup_summary.duplicates_removed == 1`
 - **TEST-006**: Smoke test in `test/local_run.py` — exercise `daily_run.main()` with mocked scrapers + mocked Supabase
 
@@ -137,11 +137,11 @@ This plan adapts the MCP server for a single-user, once-per-day cron-style execu
 - **ASSUMPTION-001**: Supabase table `public.jobs_raw` is reachable from the user's home network with the configured `SUPABASE_KEY`.
 - **ASSUMPTION-002**: Sister storage project will continue to insert scraped jobs into Supabase after each daily run; this plan does not write.
 - **ASSUMPTION-003**: The user's home IP is residential (not flagged as datacenter/VPN). If on VPN, ban risk increases regardless of behavioral hardening.
-- **ASSUMPTION-004**: Job URLs from scrapers are normalized (no tracking query params) — confirm in [`json_output.py`](jobspy_mcp_server/json_output.py) `build_jobs_json_payload`.
+- **ASSUMPTION-004**: Job URLs from scrapers are normalized (no tracking query params) — confirm in [`json_output.py`](job_search_mcp_server/json_output.py) `build_jobs_json_payload`.
 
 ## 8. Related Specifications / Further Reading
 
-- [ADR-001 — Centralized guardrails](jobspy_mcp_server/guardrails.py)
+- [ADR-001 — Centralized guardrails](job_search_mcp_server/guardrails.py)
 - [Supabase REST API filters](https://supabase.com/docs/guides/api/rest/generating-types)
 - [/memories/repo/supabase-integration-findings.md](/memories/repo/supabase-integration-findings.md) — schema and integration points already discovered
 - [LinkedIn guest API rate limit notes](https://www.linkedin.com/legal/professional-community-policies)

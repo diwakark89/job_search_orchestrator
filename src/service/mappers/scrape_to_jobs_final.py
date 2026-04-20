@@ -53,7 +53,7 @@ def map_scraped_job_to_jobs_final(scraped_job: dict[str, Any]) -> dict[str, Any]
 
     Args:
         scraped_job: A dict produced by ``scraping.output.build_jobs_json_payload``
-                     or the ``JobspyAdapter.search`` return value.
+                     or the ``JobSearchMcpAdapter.search`` return value.
 
     Returns:
         A dict suitable for ``JobsFinalRow.model_validate``.

@@ -26,7 +26,7 @@ Use this skill when the user asks to:
 - **Run enrichment** on existing `SCRAPED` rows or on a specific list of ids
 - **Read pipeline metrics** (status counts)
 
-If the user wants to **scrape** new jobs from external boards (LinkedIn, Indeed, etc.), that is a separate concern — the JobSpy MCP server lives at `src/jobspy_mcp_server/`.
+If the user wants to **scrape** new jobs from external boards (LinkedIn, Indeed, etc.), that is a separate concern — the Job Search MCP server lives at `src/job_search_mcp_server/`.
 
 ## Prerequisites
 

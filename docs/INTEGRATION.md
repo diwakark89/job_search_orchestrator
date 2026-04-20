@@ -14,7 +14,7 @@ It explains:
 
 This project exposes three supported integration interfaces:
 
-1. CLI commands via `main.py` and installed scripts (`job-search`, `jobspy-mcp-server`)
+1. CLI commands via `main.py` and installed scripts (`job-search`, `job-search-mcp-server`)
 2. Python API via `common`, `repository`, `service`, `job_enricher`, and `pipeline`
 3. HTTP API via FastAPI server (`uvicorn`)
 
@@ -33,14 +33,14 @@ The supported external surfaces are:
 
 - REST-style HTTP endpoints under `/db/{table}`
 - CLI commands under `python main.py job-manage ...` and `python main.py job-search ...`
-- Installed scripts `job-search` and `jobspy-mcp-server`
+- Installed scripts `job-search` and `job-search-mcp-server`
 - Python imports through `common`, `repository`, and `service`
 
 Legacy HTTP routes and the old CLI command group are no longer part of the supported contract.
 
 ## 1.3 CLI Migration Note
 
-- `jobspy-search` was renamed to `job-search`.
+- The legacy standalone search command is now `job-search`.
 - `python main.py db ...`, `python main.py pipeline ...`, and `python main.py enricher ...` were consolidated under `python main.py job-manage ...`.
 - HTTP route names did not change.
 
@@ -960,7 +960,7 @@ uv run python main.py job-manage pipeline metrics
 uv run python main.py job-manage enricher by-ids --ids 550e8400-e29b-41d4-a716-446655440000
 uv run python main.py job-search "software engineer" --cities "Berlin,Munich" --sites "linkedin,indeed" --results 5
 uv run job-search "software engineer" --cities "Berlin" --sites "stepstone,xing" --job-type contract --results 1
-uv run jobspy-mcp-server --transport stdio
+uv run job-search-mcp-server --transport stdio
 ```
 
 ## 8. Python API

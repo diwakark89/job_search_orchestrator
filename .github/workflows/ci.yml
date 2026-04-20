@@ -80,5 +80,5 @@ jobs:
       - name: Smoke test — job-search --help
         run: uv run job-search --help
 
-      - name: Smoke test — jobspy-mcp-server --help
-        run: uv run jobspy-mcp-server --help
+      - name: Smoke test — job-search-mcp-server --help
+        run: uv run job-search-mcp-server --help

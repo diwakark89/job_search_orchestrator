@@ -35,7 +35,7 @@ Major packages:
 - `src/pipeline/`: pipeline models and CLI wrapper
 - `src/scraping/`: orchestrator-facing scraping domain
 - `src/mcp_server/`: orchestrator MCP wrappers
-- `src/jobspy_mcp_server/`: vendored compatibility package for jobspy MCP and CLI
+- `src/job_search_mcp_server/`: vendored compatibility package for Job Search MCP and CLI
 
 Entrypoints `server.py` and `main.py` prepend `src/` to `sys.path`, so imports are package-short (for example, `from api.app import app`).
 
@@ -99,8 +99,8 @@ uv run python mcp_server.py
 Alternative compatibility entrypoints:
 
 ```bash
-uv run jobspy-mcp-server
-uv run jobspy-search "software engineer" --sites linkedin,indeed --results 5
+uv run job-search-mcp-server
+uv run job-search "software engineer" --sites linkedin,indeed --results 5
 ```
 
 CLI examples:
@@ -223,7 +223,7 @@ CI pipeline (`.github/workflows/ci.yml`):
 - Installs via `uv sync --extra dev`
 - Advisory checks: `ruff format --check`, `ruff check`, `pyright`
 - Required test run: `pytest -m "not integration"`
-- Smoke checks: `jobspy-search --help`, `jobspy-mcp-server --help`
+- Smoke checks: `job-search --help`, `job-search-mcp-server --help`
 
 ## Supported Tables and API Slugs
 

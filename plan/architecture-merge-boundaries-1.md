@@ -17,7 +17,7 @@ This plan defines a deterministic, phase-based architecture refactor after mergi
 ## 1. Requirements & Constraints
 
 - **REQ-001**: Preserve all four integration surfaces without breaking current commands in main.py and mcp_server.py.
-- **REQ-002**: Keep runtime behavior compatible for jobspy-search and jobspy-mcp-server script entrypoints defined in pyproject.toml.
+- **REQ-002**: Keep runtime behavior compatible for job-search and job-search-mcp-server script entrypoints defined in pyproject.toml.
 - **REQ-003**: Preserve job scraping core functionality exactly: any user must be able to execute job scraping through CLI and MCP server after refactors.
 - **REQ-004**: Replace direct service-layer imports of vendored scraper internals with a single orchestrator-owned scraping interface.
 - **REQ-005**: Provide deterministic mapping from scrape output payload to JobsFinalRow persistence payload.
@@ -39,7 +39,7 @@ This plan defines a deterministic, phase-based architecture refactor after mergi
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
 | TASK-001 | Create src/scraping/ports.py with ScraperPort protocol and deterministic search contract objects (request/result dataclasses or pydantic models). | ✅ | 2026-04-19 |
-| TASK-002 | Create src/scraping/adapters/jobspy_adapter.py implementing ScraperPort and wrapping jobspy_mcp_server.jobspy_scrapers.scrape_jobs. | ✅ | 2026-04-19 |
+| TASK-002 | Create src/scraping/adapters/job_search_adapter.py implementing ScraperPort and wrapping job_search_mcp_server.job_search_scrapers.scrape_jobs. | ✅ | 2026-04-19 |
 | TASK-003 | Refactor src/scraping/service.py to depend on ScraperPort and adapter injection instead of direct scrape_jobs import. | ✅ | 2026-04-19 |
 | TASK-004 | Refactor src/scraping/models.py to orchestrator-native models only (remove re-export strategy). | ✅ | 2026-04-19 |
 | TASK-005 | Refactor src/scraping/guardrails.py to keep only orchestrator-owned constants or adapter-local compatibility mapping. | ✅ | 2026-04-19 |
@@ -97,7 +97,7 @@ This plan defines a deterministic, phase-based architecture refactor after mergi
 - **FILE-002**: src/scraping/models.py
 - **FILE-003**: src/scraping/guardrails.py
 - **FILE-004**: src/scraping/ports.py
-- **FILE-005**: src/scraping/adapters/jobspy_adapter.py
+- **FILE-005**: src/scraping/adapters/job_search_adapter.py
 - **FILE-006**: src/service/pipeline.py
 - **FILE-007**: src/service/mappers/scrape_to_jobs_final.py
 - **FILE-008**: src/mcp_server/server.py
@@ -121,7 +121,7 @@ This plan defines a deterministic, phase-based architecture refactor after mergi
 - **TEST-002**: Add unit tests for scrape_to_jobs_final mapper with valid, missing, and malformed payload scenarios.
 - **TEST-003**: Add regression tests for existing scraping CLI behavior in tests/test_scraping_cli.py.
 - **TEST-004**: Add MCP tool contract tests in tests/test_scraping_mcp_interface.py for success/error envelopes and guardrail clamping.
-- **TEST-005**: Add compatibility smoke tests that assert both commands continue to work: `uv run jobspy-search --help` and `uv run jobspy-mcp-server --help`.
+- **TEST-005**: Add compatibility smoke tests that assert both commands continue to work: `uv run job-search --help` and `uv run job-search-mcp-server --help`.
 - **TEST-006**: Add integration test for pipeline ingest path using mapped scrape payload and repository mocks.
 - **TEST-007**: Add auth dependency tests ensuring protected endpoints reject unauthorized requests.
 - **TEST-008**: Execute uv run python -m pytest -v and store pass/fail summary in CI output.

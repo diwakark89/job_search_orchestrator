@@ -3,7 +3,7 @@ from __future__ import annotations
 """Orchestrator MCP interface module.
 
 This module wires MCP tools against the orchestrator's service layer instead of
-calling the vendored jobspy internals directly.  The ``scrape_jobs_tool`` is the
+calling the vendored job-search internals directly.  The ``scrape_jobs_tool`` is the
 primary integration point: it delegates entirely to ``scraping.service.search_jobs``
 and ``mcp_interface.serialization`` for formatting, keeping this file thin.
 
@@ -12,7 +12,7 @@ output helpers since those do not touch scraping core.
 
 Backward compatibility is preserved:
   - All tool names, parameter names, and default values are identical to the
-    vendored ``jobspy_mcp_server.server``.
+    vendored ``job_search_mcp_server.server``.
   - The ``main()`` entry point accepts the same ``--transport``, ``--host``,
     and ``--port`` arguments.
 """
@@ -45,9 +45,9 @@ from scraping.service import JobSearchRequest, search_jobs
 from .serialization import format_search_error, format_search_success
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("jobspy-mcp")
+logger = logging.getLogger("job-search-mcp")
 
-mcp = FastMCP("JobSpy Job Search Server")
+mcp = FastMCP("Job Search MCP Server")
 
 # ── helper ──────────────────────────────────────────────────────────────────
 
@@ -227,7 +227,7 @@ def get_supported_sites(output_format: str = "json") -> str:
         {"name": "berlin_startup_jobs", "description": "Curated startup roles based in Berlin.", "regions": ["berlin", "germany"], "reliability_note": "Best for Berlin startup ecosystem."},
         {"name": "welcome_to_the_jungle", "description": "European tech and startup jobs.", "regions": ["france", "europe", "global"], "reliability_note": "Backed by a public Algolia search API."},
         {"name": "eu_startups", "description": "EU-Startups jobs board with pan-European startup roles.", "regions": ["europe"], "reliability_note": "Strong for EU startup roles."},
-        {"name": "join", "description": "join.com aggregator of European SMB and startup roles.", "regions": ["germany", "dach", "europe"], "reliability_note": "Disabled when JOBSPY_RESPECT_ROBOTS is set."},
+        {"name": "join", "description": "join.com aggregator of European SMB and startup roles.", "regions": ["germany", "dach", "europe"], "reliability_note": "Disabled when JOB_SEARCH_RESPECT_ROBOTS is set."},
     ]
     usage_tips = [
         "Start with ['indeed', 'zip_recruiter'] for a reliable first pass.",
@@ -242,7 +242,7 @@ def get_supported_sites(output_format: str = "json") -> str:
 
 @mcp.tool()
 def get_job_search_tips(output_format: str = "json") -> str:
-    """Get helpful tips and best practices for job searching with JobSpy.
+    """Get helpful tips and best practices for job searching with Job Search.
 
     Args:
         output_format: Response format — 'json' (default) or 'markdown'
@@ -295,20 +295,20 @@ def get_job_search_tips(output_format: str = "json") -> str:
 # ── entry point ─────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """Run the JobSpy MCP server.
+    """Run the Job Search MCP server.
 
     Supports multiple transports:
       - stdio (default): for MCP clients like Claude Desktop, Cursor
       - sse: Server-Sent Events over HTTP (legacy HTTP transport)
       - streamable-http: modern MCP HTTP transport
     """
-    parser = argparse.ArgumentParser(description="JobSpy MCP Server — job scraping as AI-callable tools")
+    parser = argparse.ArgumentParser(description="Job Search MCP Server — job scraping as AI-callable tools")
     parser.add_argument("--transport", choices=["stdio", "sse", "streamable-http"], default="stdio", help="MCP transport to use (default: stdio)")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind when using sse or streamable-http (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8765, help="Port to bind when using sse or streamable-http (default: 8765)")
     args = parser.parse_args()
 
-    logger.info("Starting JobSpy MCP Server…")
+    logger.info("Starting Job Search MCP Server…")
     logger.info("Transport: %s", args.transport)
     if args.transport != "stdio":
         logger.info("Listening on http://%s:%d", args.host, args.port)

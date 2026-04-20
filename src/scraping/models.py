@@ -7,7 +7,7 @@ types the orchestrator service layer recognises.  If the underlying vendored
 package is replaced, only the adapter shim needs to change.
 """
 
-from .adapters.jobspy_models import (
+from .adapters.job_search_models import (
     Country,
     JobPost,
     JobResponse,

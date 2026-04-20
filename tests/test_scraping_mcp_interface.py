@@ -1,6 +1,6 @@
 """MCP interface contract tests for the orchestrator mcp_interface.server module.
 
-Migrated and adapted from jobs-search-mcp-server/test/test_jobspy_mcp.py.
+Migrated and adapted from jobs-search-mcp-server/test/test_job_search_mcp.py.
 Import paths have been normalised to pythonpath=src.
 Patch targets updated to match the adapter-based service layer.
 """
@@ -20,7 +20,7 @@ from mcp_interface.server import (
     mcp,
     scrape_jobs_tool,
 )
-from jobspy_mcp_server.json_output import build_jobs_json_payload
+from job_search_mcp_server.json_output import build_jobs_json_payload
 from scraping.guardrails import (
     CITIES_MAX,
     HOURS_OLD_DEFAULT,
@@ -38,7 +38,7 @@ from scraping.guardrails import (
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-_ADAPTER_PATCH = "scraping.adapters.jobspy_adapter._scrape_jobs"
+_ADAPTER_PATCH = "scraping.adapters.job_search_adapter._scrape_jobs"
 
 
 def _parse_envelope(payload: str) -> dict:

@@ -1,4 +1,4 @@
-command-> jobspy-search "software engineer" --country "germany" --sites "xing"  --results 1          
+command-> job-search "software engineer" --country "germany" --sites "xing"  --results 1          
 
 Response:
 {

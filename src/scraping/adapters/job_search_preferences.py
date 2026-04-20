@@ -1,11 +1,12 @@
-"""Orchestrator-owned scraping preferences surface.
+"""Adapter-local re-exports of vendored job_search_mcp_server preference helpers.
 
-Delegates to an adapter-local shim so the vendored job_search_mcp_server package
-stays isolated behind src/scraping/adapters/.
+Only this module (and other files inside src/scraping/adapters/) is permitted to
+import from the vendored job_search_mcp_server package. The orchestrator-owned
+src/scraping/preferences.py wraps these symbols.
 """
 from __future__ import annotations
 
-from .adapters.job_search_preferences import (
+from job_search_mcp_server.preferences import (
     RuntimePreferenceDefaults,
     SearchPreferences,
     derive_runtime_defaults,
