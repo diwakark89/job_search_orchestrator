@@ -9,6 +9,7 @@ from job_enricher.cli import app as enricher_app
 from pipeline.cli import app as pipeline_app
 from common.cli import app as db_app
 from scraping.cli import cmd_search
+from scraping.guardrails import FETCH_DESCRIPTIONS_DEFAULT
 
 app = typer.Typer(help="Automated Job Hunt orchestration CLI.")
 job_manage_app = typer.Typer(help="Unified job management CLI for table, pipeline, and enricher operations.")
@@ -31,7 +32,7 @@ def job_search(
     hours_old: int = typer.Option(24, "--hours-old", help="Only return jobs posted within the last N hours."),
     easy_apply: bool = typer.Option(False, "--easy-apply", help="Filter for easy-apply jobs."),
     fetch_descriptions: bool = typer.Option(
-        False,
+        FETCH_DESCRIPTIONS_DEFAULT,
         "--fetch-descriptions/--no-fetch-descriptions",
         help="Fetch full job descriptions when supported by the source.",
     ),

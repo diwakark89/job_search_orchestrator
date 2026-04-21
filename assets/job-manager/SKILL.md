@@ -26,21 +26,11 @@ Use this skill when the user asks to:
 - **Submit** scraped jobs for ingestion and background enrichment
 - **List / query** tracked jobs by company, status, role, or other fields
 - **Get** a single job by id
-<<<<<<< HEAD
-- **Update** a job, for example marking it `APPLIED` or `INTERVIEWING`
-- **Soft-delete** a job so it is excluded from enrichment pickup
+- **Update** a job (e.g. mark `job_status` as `APPLIED`, `INTERVIEWING`, `REJECTED`)
+- **Soft-delete** a job (sets `is_deleted=true` instead of removing the row)
 - **Hard-delete** a job when permanent removal is required
 - **Run enrichment** on `SCRAPED` rows or a specific list of ids
 - **Read pipeline metrics** to see counts by `job_status`
-=======
-- **Update** a job (e.g. mark `job_status` as `APPLIED`, `INTERVIEWING`, `REJECTED`)
-- **Soft-delete** a job (sets `is_deleted=true` instead of removing the row)
-- **Submit** new scraped jobs for ingestion + background enrichment
-- **Run enrichment** on existing `SCRAPED` rows or on a specific list of ids
-- **Read pipeline metrics** (status counts)
-
-If the user wants to **scrape** new jobs from external boards (LinkedIn, Indeed, etc.), that is a separate concern — the Job Search MCP server lives at `src/job_search_mcp_server/`.
->>>>>>> 9f20cb31af1d321d0afef0ca0b0ea47c115f89f8
 
 ## Prerequisites
 
@@ -128,18 +118,18 @@ All supported HTTP routes in this skill operate on the `jobs-final` slug, which 
 
 ### Endpoint Reference
 
-| Operation           | Method   | Path                           |
-| ------------------- | -------- | ------------------------------ | ------ |
-| List rows           | `GET`    | `/db/jobs-final`               |
-| Get one row         | `GET`    | `/db/jobs-final/{id}`          |
-| Upsert rows         | `POST`   | `/db/jobs-final`               |
-| Patch one row       | `PATCH`  | `/db/jobs-final/{id}`          |
-| Hard delete one row | `DELETE` | `/db/jobs-final/{id}`          |
-| Soft-delete one row | `DELETE` | `/db/jobs-final/{id}/soft`     |
-| Submit jobs         | `POST`   | `/pipeline/submit`             |
-| Run enricher        | `POST`   | `/enricher/run`                |
-| Enrich by ids       | `POST`   | `/enricher/by-ids?dry_run=true | false` |
-| Pipeline metrics    | `GET`    | `/pipeline/metrics`            |
+| Operation           | Method   | Path                              |
+| ------------------- | -------- | --------------------------------- |
+| List rows           | `GET`    | `/db/jobs-final`                  |
+| Get one row         | `GET`    | `/db/jobs-final/{id}`             |
+| Upsert rows         | `POST`   | `/db/jobs-final`                  |
+| Patch one row       | `PATCH`  | `/db/jobs-final/{id}`             |
+| Hard delete one row | `DELETE` | `/db/jobs-final/{id}`             |
+| Soft-delete one row | `DELETE` | `/db/jobs-final/{id}/soft`        |
+| Submit jobs         | `POST`   | `/pipeline/submit`                |
+| Run enricher        | `POST`   | `/enricher/run`                   |
+| Enrich by ids       | `POST`   | `/enricher/by-ids?dry_run=<bool>` |
+| Pipeline metrics    | `GET`    | `/pipeline/metrics`               |
 
 ### 1. List / Search Jobs
 
