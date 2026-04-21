@@ -2,64 +2,44 @@
 
 ## Project Overview
 
-Automated Job Hunt Orchestrator is a Python 3.11+ codebase that manages job ingestion, enrichment, and scraping integrations.
+Python orchestrator for an automated job-hunt data pipeline. Exposes three integration surfaces:
 
-It exposes four integration surfaces:
+- **FastAPI HTTP API** — table CRUD and orchestration at `server.py` → `src/api/`
+- **Typer CLI** — operator workflows at `main.py` → `src/common/cli.py`, `src/job_enricher/cli.py`, `src/pipeline/cli.py`
+- **Python library** — layered into `common`, `repository`, `service`, `job_enricher`, and `pipeline` packages under `src/`
 
-- FastAPI HTTP API at `server.py` and `src/api/`
-- Typer CLI at `main.py` and `src/*/cli.py`
-- MCP server entrypoint at `mcp_server.py` and `src/mcp_server/`
-- Python library modules under `src/`
+All source code lives under `src/`. The `server.py` and `main.py` entry points add `src/` to `sys.path` so modules are imported without a top-level package prefix (e.g., `from api.app import app`).
 
-Primary external dependencies:
-
-- Supabase (PostgREST over HTTP) for persistence
-- GitHub Copilot SDK for LLM enrichment
-- FastAPI, Typer, Pydantic v2, Requests, Uvicorn
-
-## Architecture Overview
-
-Layering rule (do not violate):
+### Architecture Layers
 
 ```
-API routes -> service -> repository -> PostgrestClient (requests)
+API routes  →  service layer  →  repository  →  PostgrestClient (HTTP to Supabase)
+  (FastAPI)     (dataclass       (SupabaseRepository)   (requests)
+                 results)
 ```
 
-Major packages:
+### Key Technologies
 
-- `src/api/`: FastAPI app, route handlers, response models
-- `src/common/`: shared config, constants, validators, Supabase HTTP client, CLI group
-- `src/repository/`: table-aware CRUD adapter (`SupabaseRepository`)
-- `src/service/`: orchestration logic (tables, enricher, pipeline, submit)
-- `src/job_enricher/`: Copilot client, extraction logic, enricher CLI
-- `src/pipeline/`: pipeline models and CLI wrapper
-- `src/scraping/`: orchestrator-facing scraping domain
-- `src/mcp_server/`: orchestrator MCP wrappers
-- `src/job_search_mcp_server/`: vendored compatibility package for Job Search MCP and CLI
-
-Entrypoints `server.py` and `main.py` prepend `src/` to `sys.path`, so imports are package-short (for example, `from api.app import app`).
+- Python 3.11+, FastAPI, Uvicorn, Pydantic v2, Typer, Rich, Requests
+- Supabase (PostgREST) as the data store
+- GitHub Copilot SDK for LLM-powered job enrichment
 
 ## Setup Commands
 
-Install dependencies (preferred):
-
 ```bash
+# Install dependencies (preferred)
 uv sync
-```
 
-Install development tools (pytest, ruff, pyright, etc.):
+# Or with pip
+pip install -r requirements.txt
 
-```bash
+# Install dev dependencies
 uv sync --extra dev
 ```
 
-Fallback install path:
+### Required Environment Variables
 
-```bash
-pip install -r requirements.txt
-```
-
-Required environment variables (via `.env` or shell):
+Create a `.env` file or export these variables:
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
@@ -72,229 +52,199 @@ COPILOT_RETRY_BACKOFF_SECONDS=1.0
 COPILOT_BATCH_SIZE=20
 ```
 
-Optional schema migration called out in README:
-
-- Apply `db/migrations/2026-04-18_add_job_type_work_mode_to_jobs_final.sql` before using payloads that depend on `jobs_final.job_type` and `jobs_final.work_mode`.
-
 ## Development Workflow
 
-Start API server:
+### Start the API Server
 
 ```bash
 uv run uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
-Start API server with verbose logs:
+Or use the VS Code task `Start Server (uv)` which runs on folder open.
 
-```bash
-uv run uvicorn server:app --host 0.0.0.0 --port 8000 --log-level debug
-```
-
-Start MCP server:
-
-```bash
-uv run python mcp_server.py
-```
-
-Alternative compatibility entrypoints:
-
-```bash
-uv run job-search-mcp-server
-uv run job-search "software engineer" --sites linkedin,indeed --results 5
-```
-
-CLI examples:
-
-```bash
-uv run python main.py job-manage table tables
-uv run python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
-uv run python main.py job-manage enricher enrich --limit 20 --dry-run
-uv run python main.py job-manage pipeline run payloads/jobs_raw.json --limit 20
-```
-
-Quick health checks:
+### Verify the Server
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/tables
 ```
 
-API docs while server is running:
+Expected response: `{"status": "ok", "supabase_configured": true, "copilot_configured": true}`
+
+### API Documentation
 
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
+### CLI Usage
+
+```bash
+uv run python main.py db tables
+uv run python main.py db upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
+uv run python main.py enricher enrich --limit 20 --dry-run
+uv run python main.py pipeline run payloads/jobs_raw.json --limit 20
+```
+
 ## Testing Instructions
 
-Run complete test suite:
+- Run all tests: `uv run python -m pytest -v`
+- Run API tests only: `uv run python -m pytest tests/test_api_server.py -v`
+- Run a single test: `uv run python -m pytest tests/test_validators.py::TestJobsFinalValidator::test_minimal_valid_row -v`
 
-```bash
-uv run python -m pytest -v
+VS Code tasks `Run Tests (uv)` and `Run API Tests Only (uv)` are also available.
+
+### Test Conventions
+
+- Tests live in `tests/` and use `pytest` with `monkeypatch` for mocking (no `unittest.mock.patch` decorators).
+- Use `MagicMock` for repository and client dependencies; assert on method calls.
+- Test names follow `test_<feature>_<scenario>` (e.g., `test_db_list_rows_success`).
+- FastAPI endpoints are tested via `fastapi.testclient.TestClient`.
+- Validator tests use `pytest.raises(Exception)` for invalid inputs.
+- `pythonpath = ["src"]` is configured in `pyproject.toml` so tests import from `src/` directly.
+- Dev dependencies (`pytest`, `httpx`) are declared in `[project.optional-dependencies] dev`.
+
+## Code Style
+
+### General Conventions
+
+- `from __future__ import annotations` at the top of every module.
+- Modern union syntax: `str | None` (PEP 604), not `Optional[str]`.
+- Type hints on all function signatures and return types.
+- No explicit linter or formatter is configured; follow existing style.
+
+### Configuration
+
+- Frozen dataclasses (`@dataclass(frozen=True)`) for config objects.
+- Lazy `load_config()` / `load_copilot_config()` factory functions that read from environment variables.
+- Validation happens inside the factory; raise `ValueError` for missing or invalid config.
+
+### Pydantic Models
+
+- `ConfigDict(extra="forbid")` on all row models — unknown fields are rejected.
+- `@field_validator` decorators for enum-style fields.
+- `model_dump(exclude_none=True)` when serializing for the database.
+- Timestamps are normalized to ISO 8601 UTC via `normalize_timestamp_fields()`.
+
+### Error Handling
+
+- `ValueError` → HTTP 400 (bad input from the caller).
+- `RuntimeError` → HTTP 502 (upstream Supabase or Copilot failure).
+- All API routes wrap service calls in `try/except` and convert to `HTTPException`.
+
+### Result Types
+
+- Repository and client operations return `OperationResult` (success, status_code, table, operation, row_count, data, error).
+- Service functions return typed dataclasses (`EnrichmentSummary`, `StageResult`, `PipelineResult`).
+- API responses use explicit Pydantic models from `src/api/models.py`.
+
+### Package & Import Conventions
+
+- Minimal `__init__.py` files — prefer direct imports from submodules.
+- No circular imports; layers import downward only (routes → service → repository → client).
+
+## Project Structure
+
+```
+server.py          → FastAPI entry point (imports src/api/app.py)
+main.py            → Typer CLI entry point
+src/
+  api/
+    app.py         → FastAPI app creation and router registration
+    models.py      → Pydantic response models for all endpoints
+    routes/        → Route handlers grouped by domain
+  common/
+    cli.py         → Typer subcommand for DB operations
+    client.py      → PostgrestClient (HTTP client for Supabase REST)
+    config.py      → SupabaseConfig dataclass and load_config()
+    constants.py   → Table names, conflict keys, valid enum values
+    validators.py  → Pydantic row models and validation functions
+  job_enricher/
+    cli.py         → Typer subcommand for enrichment
+    client_copilot.py → CopilotClient wrapper for LLM calls
+    config.py      → CopilotConfig dataclass and load_copilot_config()
+    constants.py   → LLM prompts, canonical tech stack, enum sets
+    extractors.py  → Field extraction from LLM responses
+  pipeline/
+    cli.py         → Typer subcommand for pipeline execution
+    models.py      → Pipeline-specific data models
+  repository/
+    supabase.py    → SupabaseRepository (table-aware CRUD with validation dispatch)
+  service/
+    enricher.py    → enrich_jobs() orchestration logic
+    pipeline.py    → run_pipeline() and per-stage functions
+    queries.py     → Reusable query helpers
+    tables.py      → Table-level service operations
+tests/             → pytest test suite
+docs/              → Integration guide and API skill reference
 ```
 
-Run unit-focused tests (matches CI behavior):
+## Supported Tables
 
-```bash
-uv run python -m pytest -v --tb=short -m "not integration"
-```
-
-Run API tests only:
-
-```bash
-uv run python -m pytest tests/test_api_server.py -v
-```
-
-Run one test case:
-
-```bash
-uv run python -m pytest tests/test_validators.py::TestJobsFinalValidator::test_minimal_valid_row -v
-```
-
-Marker usage:
-
-- `unit`: fast tests
-- `integration`: network/live-site tests
-- `slow`: long-running tests
-- `smoke`: entrypoint checks
-
-Test conventions:
-
-- Place tests under `tests/` with `test_*.py` naming.
-- Use `pytest` + `monkeypatch`; avoid decorator-based `unittest.mock.patch` patterns.
-- Prefer `MagicMock` for repository/client isolation and assert called behavior.
-- Use `fastapi.testclient.TestClient` for route tests.
-- Add or update tests for every behavioral change in `service`, `repository`, `job_enricher`, `scraping`, and API route code.
-
-## Code Style Guidelines
-
-Python conventions:
-
-- `from __future__ import annotations` at module top.
-- Full type hints on public and internal functions.
-- Use PEP 604 unions (`str | None`) instead of `Optional[str]`.
-- Keep `__init__.py` files minimal; import concrete symbols from submodules when needed.
-
-Validation and models:
-
-- Use Pydantic v2 with `ConfigDict(extra="forbid")` for payload safety.
-- Normalize timestamps with existing helpers (for example `normalize_timestamp_fields`).
-- Serialize outbound records with `model_dump(exclude_none=True)` where appropriate.
-
-Error semantics:
-
-- `ValueError` maps to HTTP 400 in routes.
-- `RuntimeError` maps to HTTP 502 for upstream/dependency failures.
-- API routes should catch and convert service exceptions to `HTTPException` responses.
-
-Architecture constraints:
-
-- Keep dependency flow downward only: routes -> service -> repository -> client.
-- Avoid introducing circular imports across `src/` packages.
-
-## Build and Deployment
-
-Packaging/build system:
-
-- Build backend is `hatchling` (`pyproject.toml`).
-- Wheel packages are declared under `[tool.hatch.build.targets.wheel]`.
-
-Create distributable artifacts:
-
-```bash
-uv build
-```
-
-or
-
-```bash
-python -m build
-```
-
-Deployment/runtime notes:
-
-- This project is typically run as a long-lived API service (`uvicorn`) plus optional MCP server process.
-- Production deployment must inject environment variables securely (never from committed files).
-- Validate `/health` after deployment and confirm Supabase + Copilot configuration flags are true.
-
-CI pipeline (`.github/workflows/ci.yml`):
-
-- Runs on pushes/PRs to `main`
-- Python matrix: 3.11 and 3.12
-- Installs via `uv sync --extra dev`
-- Advisory checks: `ruff format --check`, `ruff check`, `pyright`
-- Required test run: `pytest -m "not integration"`
-- Smoke checks: `job-search --help`, `job-search-mcp-server --help`
-
-## Supported Tables and API Slugs
-
-- `jobs-final` -> `jobs_final` (conflict key: `id`, soft delete supported)
-
-Important API behavior:
-
-- Table routes use `/db/{table}` with hyphenated table slugs.
-- Filtering is query-param based (example: `/db/jobs-final?job_status=APPLIED`).
-- Enricher default source is `jobs_final` rows with `job_status=SCRAPED` and `is_deleted=false`.
-- Pipeline stage order is `ingest -> enrich`.
-- `POST /pipeline/submit` upserts jobs by `job_url` and queues in-process enrichment.
+| Slug (HTTP) | Table Name (DB) | Conflict Key | Notes |
+|-------------|-----------------|--------------|-------|
+| `jobs-final` | `jobs_final` | `id` | Supports soft delete |
+| `shared-links` | `shared_links` | `url` | |
 
 ## Security Considerations
 
-- Never commit secrets (`SUPABASE_URL`, `SUPABASE_KEY`, Copilot tokens, or `.env` contents).
-- Prefer scoped Supabase keys with minimum table permissions required.
-- Do not construct raw SQL from user input; use the PostgREST client/repository abstractions.
-- Re-validate LLM-enriched output through extractors and Pydantic validators before persistence.
-- Preserve `extra="forbid"` on request/row models unless there is a clear schema change.
+- **Never commit secrets**: `SUPABASE_URL` and `SUPABASE_KEY` must be stored in `.env` (git-ignored) or injected via environment — never hardcoded.
+- **Key scope**: Use a scoped Supabase service-role key with the minimum permissions required (read + write to `jobs_final` and `shared_links` only).
+- **Input validation**: All inbound data is validated through Pydantic models with `extra="forbid"` before reaching the repository layer.
+- **No SQL construction**: The repository layer uses Supabase PostgREST — no raw SQL strings are built from user input, preventing SQL injection.
+- **LLM output sanitisation**: Copilot SDK responses are parsed by `extractors.py` and re-validated against Pydantic models before being written to the database.
 
 ## Pull Request Guidelines
 
-Title format:
+- **Title format**: `[component] Brief imperative description` — e.g., `[enricher] Add retry backoff for Copilot timeouts`
+- **Component tags**: `api`, `cli`, `common`, `enricher`, `pipeline`, `repository`, `service`, `tests`, `docs`, `deps`
+- **Required checks before merge**:
+  1. `uv run python -m pytest -v` — full test suite must pass
+  2. Manual smoke-test: `curl http://localhost:8000/health` against a running server
+- **Dry-run first**: For enricher or pipeline changes, verify with `--dry-run` before merging.
+- **No new public functions without tests**: Every new service, repository, or extractor function requires a corresponding test in `tests/`.
+- **Layer discipline**: PRs must not introduce imports that violate the downward-only dependency rule (routes → service → repository → client).
 
-- `[component] Brief imperative description`
+## Debugging and Troubleshooting
 
-Common component tags:
+### Server won't start
 
-- `api`, `cli`, `common`, `enricher`, `pipeline`, `scraping`, `mcp`, `repository`, `service`, `tests`, `docs`, `deps`
+- Check that all required env vars are set: `SUPABASE_URL`, `SUPABASE_KEY`.
+- Missing vars raise `ValueError` at startup — read the traceback carefully; it names the missing variable.
 
-Before opening/merging a PR:
+### `502` responses from API
 
-1. Run `uv run python -m pytest -v` (or at minimum CI-equivalent non-integration tests).
-2. For enricher/pipeline changes, run a `--dry-run` flow first.
-3. Smoke-check service health with `curl http://localhost:8000/health`.
-4. Add tests for any new public function or behavior change.
-5. Verify layer-discipline imports still follow routes -> service -> repository -> client.
+- Indicates a Supabase or Copilot upstream failure. Check `SUPABASE_URL` reachability and `SUPABASE_KEY` validity.
+- For enrichment 502s, verify `COPILOT_MODEL` is a valid model name and the Copilot SDK token is active.
 
-## Troubleshooting
+### Tests fail with import errors
 
-Server startup fails:
+- Ensure `pythonpath = ["src"]` is present in `pyproject.toml` under `[tool.pytest.ini_options]`.
+- Run tests via `uv run python -m pytest` (not `pytest` directly) to pick up the `uv` virtual environment.
 
-- Confirm required env vars are present and valid.
-- Missing config values raise `ValueError` during startup.
+### Enricher processes 0 rows
 
-Frequent 502 responses:
+- The enricher only processes rows where `job_status=SCRAPED` and `is_deleted=false`. Verify data state with:
+  ```bash
+  curl "http://localhost:8000/db/jobs-final?job_status=SCRAPED"
+  ```
 
-- Check Supabase URL/key reachability and permissions.
-- Verify Copilot model value and active SDK authentication.
+### Pydantic `extra="forbid"` validation errors
 
-Import errors in tests:
+- Unknown fields in a payload are rejected at the validator level. Check `src/common/validators.py` and `src/common/constants.py` for the current allowed field set.
 
-- Ensure tests are run via `uv run` so project environment and `pythonpath = ["src"]` are applied.
+### Logging
 
-Enricher processes zero rows:
+- FastAPI/Uvicorn logs to stdout by default. Add `--log-level debug` to the uvicorn command for verbose request logs:
+  ```bash
+  uv run uvicorn server:app --host 0.0.0.0 --port 8000 --log-level debug
+  ```
 
-- Verify source records match `job_status=SCRAPED` and `is_deleted=false`.
-- Example query:
+## Additional Notes
 
-```bash
-curl "http://localhost:8000/db/jobs-final?job_status=SCRAPED"
-```
-
-Validation failures (`extra fields not permitted`):
-
-- Check active schema in `src/common/validators.py` and enum/value constants in `src/common/constants.py`.
-
-## Agent Notes
-
-- Prefer `uv` commands for reproducible runs.
-- Keep edits minimal and scoped; avoid broad refactors unless requested.
-- Update tests together with code changes.
-- If adding new integration surfaces or packages, update this file in the same PR.
+- The HTTP API uses hyphenated slugs (`jobs-final`) while the database uses underscored names (`jobs_final`). Route handlers translate between the two.
+- List filtering uses plain query parameters: `GET /db/jobs-final?job_status=APPLIED&company_name=Acme`.
+- The enricher reads `jobs_final` rows where `job_status=SCRAPED` and `is_deleted=false`, enriches them, and patches `job_status=ENRICHED` directly on `jobs_final`.
+- The full pipeline runs two stages sequentially: `ingest → enrich`.
+- Soft delete is supported only for `jobs-final`.
+- Metrics are computed dynamically via `SELECT job_status, COUNT(*) FROM jobs_final GROUP BY job_status` — no separate metrics table.
+- Service functions accept `dry_run=True` to preview operations without persisting.
+- The integration contract is documented in `docs/INTEGRATION.md`.

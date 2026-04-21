@@ -1,6 +1,6 @@
 ---
 name: job_manager
-description: Search, query, update, soft-delete, submit, and enrich jobs in the local Automated Job Hunt Orchestrator (FastAPI + Typer CLI). Use when the user asks to look up tracked jobs, change a job's status (e.g. APPLIED), ingest scraped jobs, trigger enrichment, or read pipeline metrics.
+description: Search supported job boards, submit scraped jobs for async persistence and enrichment, and perform jobs-final CRUD operations in the Automated Job Hunt Orchestrator. Use when the user asks to find jobs, save scraped jobs to the database, update job status, soft-delete records, enrich by ids, or read pipeline metrics.
 metadata:
   {
     "openclaw":
@@ -10,7 +10,11 @@ metadata:
 
 # Job Manager Skill
 
-Manage jobs tracked in the **Automated Job Hunt Orchestrator** running locally on `http://localhost:8000`. The orchestrator is a FastAPI + Typer service backed by Supabase (PostgREST). This skill teaches the agent how to search/query existing jobs, update them, soft-delete them, submit new scraped jobs for async enrichment, run enrichment on demand, and read pipeline metrics.
+Manage jobs in the **Automated Job Hunt Orchestrator** running locally on `http://localhost:8000`. This skill covers three main workflows:
+
+- search jobs across supported external job boards
+- save scraped jobs through the pipeline submit flow
+- perform CRUD-style operations against `jobs_final`
 
 > Format reference: this skill follows the OpenClaw skill spec at <https://docs.openclaw.ai/tools/creating-skills>.
 
@@ -18,8 +22,17 @@ Manage jobs tracked in the **Automated Job Hunt Orchestrator** running locally o
 
 Use this skill when the user asks to:
 
-- **Search / query** tracked jobs (by company, status, role, etc.)
+- **Search / scrape** jobs from supported boards such as LinkedIn, Indeed, and Glassdoor
+- **Submit** scraped jobs for ingestion and background enrichment
+- **List / query** tracked jobs by company, status, role, or other fields
 - **Get** a single job by id
+<<<<<<< HEAD
+- **Update** a job, for example marking it `APPLIED` or `INTERVIEWING`
+- **Soft-delete** a job so it is excluded from enrichment pickup
+- **Hard-delete** a job when permanent removal is required
+- **Run enrichment** on `SCRAPED` rows or a specific list of ids
+- **Read pipeline metrics** to see counts by `job_status`
+=======
 - **Update** a job (e.g. mark `job_status` as `APPLIED`, `INTERVIEWING`, `REJECTED`)
 - **Soft-delete** a job (sets `is_deleted=true` instead of removing the row)
 - **Submit** new scraped jobs for ingestion + background enrichment
@@ -27,117 +40,49 @@ Use this skill when the user asks to:
 - **Read pipeline metrics** (status counts)
 
 If the user wants to **scrape** new jobs from external boards (LinkedIn, Indeed, etc.), that is a separate concern — the Job Search MCP server lives at `src/job_search_mcp_server/`.
+>>>>>>> 9f20cb31af1d321d0afef0ca0b0ea47c115f89f8
 
 ## Prerequisites
 
-- Orchestrator FastAPI server running (default `http://localhost:8000`). Start with VS Code task **Start Server (uv)** or:
+- Orchestrator FastAPI server running on `http://localhost:8000`:
 
   ```bash
   uv run uvicorn server:app --host 0.0.0.0 --port 8000
   ```
 
-- Verify with `curl http://localhost:8000/health` — expect `{"status":"ok","supabase_configured":true,"copilot_configured":true}`.
-- **Auth**: when the server has the `API_KEY` env var set, every request must include header `X-API-Key: <value>`. If `API_KEY` is unset (typical local dev), auth is disabled.
-- **CLI method (Method B)** additionally requires `python` and `uv` on `PATH` and an activated `.venv`.
+- Verify health:
 
-## Method A: HTTP via curl / web_fetch — Recommended
+  ```bash
+  curl http://localhost:8000/health
+  ```
 
-All endpoints accept and return JSON. Set `Content-Type: application/json` on requests with a body.
+- If the server has `API_KEY` configured, include `X-API-Key: <value>` on every HTTP request.
+- CLI examples assume you are in the repository root with the project environment available.
 
-### Endpoint Reference
+## Supported Job Boards
 
-| Operation                   | Method   | Path                       |
-| --------------------------- | -------- | -------------------------- |
-| Health check                | `GET`    | `/health`                  |
-| List tables                 | `GET`    | `/tables`                  |
-| Search / list jobs          | `GET`    | `/db/jobs-final`           |
-| Get one job by id           | `GET`    | `/db/jobs-final/{id}`      |
-| Update a job                | `PATCH`  | `/db/jobs-final/{id}`      |
-| Soft-delete a job           | `DELETE` | `/db/jobs-final/{id}/soft` |
-| Submit scraped jobs (async) | `POST`   | `/pipeline/submit`         |
-| Run enricher (all SCRAPED)  | `POST`   | `/enricher/run`            |
-| Enrich specific ids         | `POST`   | `/enricher/by-ids`         |
-| Pipeline metrics            | `GET`    | `/pipeline/metrics`        |
+Use `python main.py job-search ...` to scrape jobs from boards supported by the orchestrator. The exact board ids and search guardrails are documented in [supported-job-boards.md](./references/supported-job-boards.md).
 
-### 1. Search / list jobs
-
-`GET /db/jobs-final` — extra query params become equality filters on columns. Reserved params: `columns`, `limit`, `offset`, `order_by`, `ascending`.
-
-**Find applied jobs at Acme, newest first, max 5:**
+Common examples:
 
 ```bash
-curl "http://localhost:8000/db/jobs-final?company_name=Acme%20Corp&job_status=APPLIED&order_by=created_at&ascending=false&limit=5"
+python main.py job-search "software engineer" --sites linkedin,indeed --results 5 --hours-old 24
 ```
-
-**Project only a few columns:**
 
 ```bash
-curl "http://localhost:8000/db/jobs-final?job_status=SAVED&columns=id,company_name,role_title,job_url&limit=10"
+job-search "data scientist" --sites linkedin,glassdoor --results 3 --country germany
 ```
 
-Success response:
+## Save Flow: Use Pipeline Submit
 
-```json
-{
-  "rows": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "company_name": "Acme Corp",
-      "role_title": "Senior Android Engineer",
-      "job_status": "APPLIED",
-      "job_url": "https://example.com/jobs/123"
-    }
-  ],
-  "count": 1,
-  "table": "jobs_final"
-}
-```
+When the user wants to **save scraped jobs to the database**, the primary flow is:
 
-### 2. Get one job by id
+- HTTP: `POST /pipeline/submit`
+- CLI: `python main.py job-manage pipeline submit <file.json>`
 
-```bash
-curl "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
-```
+This route validates input rows, writes accepted jobs into `jobs_final` with initial `job_status=SCRAPED`, and queues asynchronous enrichment. It returns **HTTP 202** immediately.
 
-Returns the same `{ "rows": [...], "count": 1, "table": "jobs_final" }` shape.
-
-### 3. Update a job (PATCH)
-
-Send only the fields you want to change. Common use case: move a job through the funnel by patching `job_status`.
-
-**Mark a job as APPLIED:**
-
-```bash
-curl -X PATCH "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000" \
-  -H "Content-Type: application/json" \
-  -d '{"job_status":"APPLIED"}'
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "status_code": 200,
-  "table": "jobs_final",
-  "operation": "patch",
-  "row_count": 1,
-  "data": null,
-  "error": null
-}
-```
-
-### 4. Soft-delete a job
-
-Soft delete sets `is_deleted=true`. The row stays in the table but is excluded from enricher pickup. Supported only for `jobs-final`.
-
-```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft"
-```
-
-### 5. Submit scraped jobs (async ingest + enrich)
-
-`POST /pipeline/submit` validates each row, upserts valid ones into `jobs_final` with `job_status=SCRAPED` (deduped by `job_url`), upserts matching `shared_links`, and queues background enrichment. Returns **HTTP 202** immediately.
+### HTTP Submit Example
 
 ```bash
 curl -X POST "http://localhost:8000/pipeline/submit" \
@@ -156,7 +101,7 @@ curl -X POST "http://localhost:8000/pipeline/submit" \
   }'
 ```
 
-Success response (`202`):
+Expected response shape:
 
 ```json
 {
@@ -165,14 +110,116 @@ Success response (`202`):
   "queued": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
   "rejected_row_indexes": [],
   "errors": [],
-  "jobs_final_row_count": 1,
-  "shared_links_row_count": 1
+  "jobs_final_row_count": 1
 }
 ```
 
-### 6. Run enricher
+### CLI Submit Example
 
-**All `SCRAPED` rows (limit 50, dry run preview):**
+```bash
+python main.py job-manage pipeline submit payloads/jobs_raw.json
+```
+
+The JSON file may contain either a top-level array of job objects or an object with a `jobs` array.
+
+## Method A: HTTP CRUD And Operations
+
+All supported HTTP routes in this skill operate on the `jobs-final` slug, which maps to the `jobs_final` table.
+
+### Endpoint Reference
+
+| Operation           | Method   | Path                           |
+| ------------------- | -------- | ------------------------------ | ------ |
+| List rows           | `GET`    | `/db/jobs-final`               |
+| Get one row         | `GET`    | `/db/jobs-final/{id}`          |
+| Upsert rows         | `POST`   | `/db/jobs-final`               |
+| Patch one row       | `PATCH`  | `/db/jobs-final/{id}`          |
+| Hard delete one row | `DELETE` | `/db/jobs-final/{id}`          |
+| Soft-delete one row | `DELETE` | `/db/jobs-final/{id}/soft`     |
+| Submit jobs         | `POST`   | `/pipeline/submit`             |
+| Run enricher        | `POST`   | `/enricher/run`                |
+| Enrich by ids       | `POST`   | `/enricher/by-ids?dry_run=true | false` |
+| Pipeline metrics    | `GET`    | `/pipeline/metrics`            |
+
+### 1. List / Search Jobs
+
+`GET /db/jobs-final` supports equality filters through query parameters. Reserved parameters are `columns`, `limit`, `offset`, `order_by`, and `ascending`.
+
+```bash
+curl "http://localhost:8000/db/jobs-final?job_status=APPLIED&company_name=Acme%20Corp&limit=5"
+```
+
+```bash
+curl "http://localhost:8000/db/jobs-final?job_status=SAVED&columns=id,company_name,role_title,job_url&order_by=created_at&ascending=false&limit=10"
+```
+
+Response shape:
+
+```json
+{
+  "rows": [],
+  "count": 0,
+  "table": "jobs_final"
+}
+```
+
+### 2. Get One Job By Id
+
+```bash
+curl "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
+```
+
+### 3. Upsert Jobs
+
+`POST /db/jobs-final` expects a `rows` array.
+
+```bash
+curl -X POST "http://localhost:8000/db/jobs-final" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rows": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "company_name": "Acme Corp",
+        "role_title": "Senior Engineer",
+        "job_url": "https://example.com/jobs/1",
+        "job_status": "SAVED"
+      }
+    ]
+  }'
+```
+
+### 4. Patch One Job
+
+For the HTTP API, patch payloads must be wrapped in a `payload` object.
+
+```bash
+curl -X PATCH "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000" \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"job_status": "APPLIED"}}'
+```
+
+### 5. Soft-Delete One Job
+
+Soft delete sets `is_deleted=true`. The request body is optional. If provided, it supports `hard_delete`.
+
+```bash
+curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft"
+```
+
+```bash
+curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft" \
+  -H "Content-Type: application/json" \
+  -d '{"hard_delete": true}'
+```
+
+### 6. Hard Delete One Job
+
+```bash
+curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
+```
+
+### 7. Run Enricher
 
 ```bash
 curl -X POST "http://localhost:8000/enricher/run" \
@@ -180,31 +227,26 @@ curl -X POST "http://localhost:8000/enricher/run" \
   -d '{"limit": 50, "dry_run": true}'
 ```
 
-**Specific ids:**
+### 8. Enrich By Ids
+
+`POST /enricher/by-ids` expects a JSON array of objects, not a wrapped payload.
 
 ```bash
-curl -X POST "http://localhost:8000/enricher/by-ids" \
+curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
   -H "Content-Type: application/json" \
-  -d '[{"id":"550e8400-e29b-41d4-a716-446655440000"}]'
+  -d '[
+    {"id": "550e8400-e29b-41d4-a716-446655440000"},
+    {"id": "550e8400-e29b-41d4-a716-446655440001"}
+  ]'
 ```
 
-Success response (both):
-
-```json
-{
-  "processed": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
-  "enriched": { "count": 1, "ids": ["550e8400-e29b-41d4-a716-446655440000"] },
-  "skipped": { "count": 0, "ids": [] },
-  "failed": { "count": 0, "ids": [] },
-  "errors": []
-}
-```
-
-### 7. Pipeline metrics
+### 9. Pipeline Metrics
 
 ```bash
 curl "http://localhost:8000/pipeline/metrics"
 ```
+
+Response shape:
 
 ```json
 {
@@ -213,9 +255,9 @@ curl "http://localhost:8000/pipeline/metrics"
 }
 ```
 
-## Method B: CLI via `exec` tool
+## Method B: CLI Operations
 
-Run from the orchestrator project root with the `.venv` activated.
+Use the unified CLI for local operations.
 
 | Operation             | Command                                                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -224,77 +266,81 @@ Run from the orchestrator project root with the `.venv` activated.
 | Get one row           | `python main.py job-manage table get --table jobs_final --id <UUID>`                                                                     |
 | Upsert rows           | `python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json`                               |
 | Patch a row           | `python main.py job-manage table patch --table jobs_final --filter-column id --filter-value <UUID> --payload '{"job_status":"APPLIED"}'` |
+| Soft-delete a row     | `python main.py job-manage table soft-delete --table jobs_final --record-id <UUID>`                                                      |
+| Hard delete a row     | `python main.py job-manage table delete --table jobs_final --filter-column id --filter-value <UUID> --treat-404-as-success`              |
+| Submit jobs           | `python main.py job-manage pipeline submit payloads/jobs_raw.json`                                                                       |
 | Run enricher          | `python main.py job-manage enricher enrich --limit 20 --dry-run`                                                                         |
 | Enrich by ids         | `python main.py job-manage enricher by-ids --ids <UUID1>,<UUID2> --dry-run`                                                              |
-| Run full pipeline     | `python main.py job-manage pipeline run payloads/jobs_raw.json --limit 20`                                                               |
-| Pipeline submit       | `python main.py job-manage pipeline submit payloads/jobs_raw.json`                                                                       |
+| Enrich by ids file    | `python main.py job-manage enricher by-ids --ids-file payloads/job_ids.json --dry-run`                                                   |
 | Pipeline metrics      | `python main.py job-manage pipeline metrics`                                                                                             |
-| Stage: enrich SCRAPED | `python main.py job-manage pipeline stage-enriched --limit 20 --dry-run`                                                                 |
+| Search job boards     | `python main.py job-search "software engineer" --sites linkedin,indeed --results 5`                                                      |
 
-## Which Endpoint to Use
+## Which Endpoint To Use
 
-| Goal                                               | Endpoint                                           | Notes                                                      |
-| -------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------- |
-| Ingest new raw jobs and enrich automatically       | `POST /pipeline/submit`                            | Returns 202; background enrichment; `shared_links` created |
-| Ingest + enrich synchronously in one blocking call | `POST /pipeline/run`                               | See canonical doc; not covered in detail here              |
-| Ingest jobs only (no enrichment)                   | `POST /pipeline/stage/ingest`                      | Writes rows as `SCRAPED`; no enrichment triggered          |
-| Enrich existing `SCRAPED` rows                     | `POST /pipeline/stage/enriched` or `/enricher/run` | Same effect; pick by limit                                 |
-| Enrich a specific set of ids                       | `POST /enricher/by-ids`                            | Targeted enrichment                                        |
-| Read, update, or soft-delete a single record       | `GET/PATCH/DELETE /db/jobs-final[/{id}]`           | Direct table CRUD; no enrichment logic                     |
-| `shared_links` CRUD                                | `GET/POST/PATCH/DELETE /db/shared-links`           | Out of scope here; see canonical doc                       |
+| Goal                           | Endpoint                                                | Notes                                                         |
+| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------- |
+| Search external job boards     | `python main.py job-search ...`                         | Search/scrape is provided through the CLI surface             |
+| Save scraped jobs to DB        | `POST /pipeline/submit`                                 | Primary persistence flow; returns `202` and queues enrichment |
+| Ingest + enrich synchronously  | `POST /pipeline/run`                                    | Supported by the API, but submit is the preferred save flow   |
+| Ingest jobs only               | `POST /pipeline/stage/ingest`                           | Writes rows as `SCRAPED`                                      |
+| Enrich existing `SCRAPED` rows | `POST /enricher/run` or `POST /pipeline/stage/enriched` | Use `dry_run` to preview                                      |
+| Enrich specific records        | `POST /enricher/by-ids`                                 | Send a JSON array of `{ "id": "..." }` items                  |
+| Read/update/delete one job     | `/db/jobs-final/{id}`                                   | Direct `jobs_final` CRUD                                      |
 
-## Field & Enum Reference
+## Field And Enum Reference
 
-`jobs_final` row fields used in examples:
+`jobs_final` fields commonly used in these workflows:
 
-| Field          | Type   | Notes                                                                          |
-| -------------- | ------ | ------------------------------------------------------------------------------ |
-| `id`           | UUID   | Primary key **and** conflict key for upserts. Do **not** use `job_id`.         |
-| `company_name` | string | —                                                                              |
-| `role_title`   | string | —                                                                              |
-| `job_url`      | string | Used for `shared_links` dedupe via `on_conflict=url`.                          |
-| `description`  | string | Free text from scrape; enriched downstream.                                    |
-| `job_type`     | enum   | One of `fulltime`, `parttime`, `internship`, `contract`, `temporary`, `other`. |
-| `work_mode`    | enum   | One of `remote`, `hybrid`, `on-site`, `other`. **Do not send `remote_type`.**  |
-| `job_status`   | enum   | Pipeline lifecycle: `SCRAPED` → `ENRICHED` → `SAVED` → `APPLIED` → ...         |
-| `is_deleted`   | bool   | Set by soft-delete; excluded from enricher pickup.                             |
+| Field          | Type   | Notes                                                                                                                    |
+| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`           | UUID   | Primary key and upsert conflict key                                                                                      |
+| `company_name` | string | Company name                                                                                                             |
+| `role_title`   | string | Job title                                                                                                                |
+| `job_url`      | string | Unique URL used for dedupe during submit                                                                                 |
+| `description`  | string | Raw or enriched description                                                                                              |
+| `job_type`     | enum   | `fulltime`, `parttime`, `internship`, `contract`, `temporary`, `other`                                                   |
+| `work_mode`    | enum   | `remote`, `hybrid`, `on-site`, `other`                                                                                   |
+| `job_status`   | enum   | `SCRAPED`, `ENRICHED`, `SAVED`, `APPLIED`, `INTERVIEW`, `INTERVIEWING`, `OFFER`, `RESUME_REJECTED`, `INTERVIEW_REJECTED` |
+| `is_deleted`   | bool   | Excluded from enricher pickup when true                                                                                  |
 
-Constraints (verified):
+Important constraints:
 
-- Unmatched `job_type` / `work_mode` values normalize to `other`.
-- `tags` is **not** an accepted field on `jobs_final`; rows containing it are rejected.
-- `shared_links` payloads must **not** include a `status` field.
+- Unknown `job_type` and `work_mode` values normalize to `other`
+- Do not send `job_id`; use `id`
+- Do not send `remote_type`; use `work_mode`
+- Rows containing unsupported fields such as `tags` may be rejected
 
 ## Error Responses
 
-| HTTP | Cause                                | Example body                                                                     |
-| ---- | ------------------------------------ | -------------------------------------------------------------------------------- |
-| 400  | Bad request body / unknown column    | `{ "detail": "No valid jobs submitted. row[0]: job_url is required." }`          |
-| 401  | Missing/wrong `X-API-Key` (when set) | `{ "detail": "Invalid API key" }`                                                |
-| 404  | Unknown table slug                   | `{ "detail": "Unknown table 'foo'. Available: ['jobs-final', 'shared-links']" }` |
-| 502  | Upstream Supabase or Copilot failure | `{ "success": false, "status_code": 502, "error": "..." }`                       |
+| HTTP | Cause                                    | Example body                                                                        |
+| ---- | ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| 400  | Invalid request body or validation error | `{ "detail": "No valid jobs submitted. row[0]: job_url is required." }`             |
+| 401  | Missing or wrong `X-API-Key`             | `{ "detail": "Invalid API key" }`                                                   |
+| 404  | Unknown table slug                       | `{ "detail": "Unknown table 'foo'. Available: ['jobs-final']" }`                    |
+| 502  | Upstream Supabase or Copilot failure     | `{ "detail": "..." }` or `{ "success": false, "status_code": 502, "error": "..." }` |
 
-Always check HTTP status before parsing the body. For `/db/...` write operations, additionally check the `success` field in the response envelope.
+Always check HTTP status before trusting the response body.
 
 ## Tips
 
-- For **search**, prefer narrow filters + `limit` to keep responses small.
-- For **status updates**, PATCH only the changed field; do not echo back the full row.
-- For **bulk ingestion**, prefer `POST /pipeline/submit` over manual upsert + enrich — it handles validation, dedupe, and background enrichment in one call.
-- Use `dry_run: true` on `/enricher/run` to preview without writing.
-- The enricher only picks up `jobs_final` rows where `job_status=SCRAPED` **and** `is_deleted=false`.
+- Prefer `POST /pipeline/submit` instead of manual upsert + enrich for scraped jobs
+- For status updates, patch only the fields that changed
+- Use `dry_run: true` for enrich flows when you want a non-writing preview
+- The enricher only picks up rows where `job_status=SCRAPED` and `is_deleted=false`
 
 ## Troubleshooting
 
-- **Connection refused on `:8000`** — server is not running. Start it with the **Start Server (uv)** task or `uv run uvicorn server:app --host 0.0.0.0 --port 8000`.
-- **`401 Invalid API key`** — server has `API_KEY` set; include `-H "X-API-Key: <value>"`.
-- **`404 Unknown table 'xxx'`** — slug must be hyphenated (`jobs-final`, `shared-links`), not the underlying table name.
-- **`400 Extra inputs are not permitted`** — payload includes a field rejected by the validator (e.g. `tags`, `remote_type`, `job_id`). Remove it.
-- **`502` from `/enricher/*`** — Copilot/Supabase upstream failure. Check server logs and the `COPILOT_*` env vars.
-- **Background enrichment from `/pipeline/submit` is in-process** — if the API restarts, queued work is lost. Re-run `/enricher/run` to retry.
+- **Connection refused on `:8000`**: start the API server first
+- **`401 Invalid API key`**: add the `X-API-Key` header when auth is enabled
+- **`404 Unknown table`**: use the hyphenated slug `jobs-final`, not `jobs_final`
+- **`400 Extra inputs are not permitted`**: remove unsupported fields such as `tags`, `remote_type`, or `job_id`
+- **`502` from `/enricher/*`**: check server logs and upstream Copilot/Supabase configuration
+- **Background enrichment from `/pipeline/submit` is in-process**: if the API restarts, rerun enrichment manually
 
 ## References
 
-- [`../../docs/INTEGRATION.md`](../../docs/INTEGRATION.md) — canonical integration contract for HTTP endpoints, `job-manage` CLI, and `job-search` script usage.
-- [`../../docs/SUPABASE_SCHEMA.md`](../../docs/SUPABASE_SCHEMA.md) — database schema for `jobs_final` and `shared_links`.
-- <https://docs.openclaw.ai/tools/creating-skills> — OpenClaw skill format spec used by this file.
+- [supported-job-boards.md](./references/supported-job-boards.md) — exact supported board ids and search guardrails
+- [submit-and-crud-recipes.md](./references/submit-and-crud-recipes.md) — copy-ready submit, CRUD, enrich, and metrics recipes
+- [`../../docs/INTEGRATION.md`](../../docs/INTEGRATION.md) — canonical integration contract
+- [`../../docs/SUPABASE_SCHEMA.md`](../../docs/SUPABASE_SCHEMA.md) — current database schema notes
+- <https://docs.openclaw.ai/tools/creating-skills> — OpenClaw skill format reference
