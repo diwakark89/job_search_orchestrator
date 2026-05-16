@@ -1,16 +1,11 @@
 ---
-name: job_manager
+name: job-manager
 description: Search supported job boards, submit scraped jobs for async persistence and enrichment, and perform jobs-final CRUD operations in the Automated Job Hunt Orchestrator. Use when the user asks to find jobs, save scraped jobs to the database, update job status, soft-delete records, enrich by ids, or read pipeline metrics.
-metadata:
-  {
-    "openclaw":
-      { "requires": { "bins": ["curl"] }, "os": ["darwin", "linux", "win32"] },
-  }
 ---
 
 # Job Manager Skill
 
-Manage jobs in the **Automated Job Hunt Orchestrator** running locally on `http://localhost:8000`. This skill covers three main workflows:
+Manage jobs in the **Automated Job Hunt Orchestrator** running locally on `http://localhost:6000`. This skill covers three main workflows:
 
 - search jobs across supported external job boards
 - save scraped jobs through the pipeline submit flow
@@ -34,20 +29,91 @@ Use this skill when the user asks to:
 
 ## Prerequisites
 
-- Orchestrator FastAPI server running on `http://localhost:8000`:
+- Orchestrator FastAPI server running on `http://localhost:6000`:
 
   ```bash
-  uv run uvicorn server:app --host 0.0.0.0 --port 8000
+  uv run uvicorn server:app --host 0.0.0.0 --port 6000
   ```
 
 - Verify health:
 
   ```bash
-  curl http://localhost:8000/health
+  curl http://localhost:6000/health
   ```
+
+- OpenClaw target endpoint for HTTP operations is `http://localhost:6000`.
 
 - If the server has `API_KEY` configured, include `X-API-Key: <value>` on every HTTP request.
 - CLI examples assume you are in the repository root with the project environment available.
+
+## OpenClaw Runtime Policy
+
+OpenClaw should use a **CLI-first fallback strategy** with HTTP available when the user explicitly asks for API/curl behavior.
+
+Execution policy:
+
+1. If the requested operation has a CLI equivalent, run the CLI command first.
+2. If the user explicitly requests HTTP/curl behavior (or the workflow is HTTP-only), check API health on `http://localhost:6000/health`.
+3. If health check fails, attempt to start the server:
+
+   ```bash
+   uv run uvicorn server:app --host 0.0.0.0 --port 6000
+   ```
+
+4. Re-check health on `http://localhost:6000/health`.
+5. If startup still fails:
+   - Continue in **degraded mode** with CLI equivalents when available.
+   - Clearly report that API interactions on port `6000` are unavailable.
+   - If no CLI equivalent exists for the requested action, stop and report a blocking startup error.
+
+### HTTP To CLI Fallback Map
+
+| Requested operation (HTTP or workflow) | CLI fallback command                                                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Search jobs                            | `python main.py job-search "software engineer" --sites linkedin,indeed --results 5`                                                      |
+| `POST /pipeline/submit`                | `python main.py job-manage pipeline submit payloads/jobs_raw.json`                                                                       |
+| `GET /db/jobs-final`                   | `python main.py job-manage table list --table jobs_final --filter job_status=APPLIED --limit 10`                                         |
+| `GET /db/jobs-final/{id}`              | `python main.py job-manage table get --table jobs_final --id <UUID>`                                                                     |
+| `POST /db/jobs-final`                  | `python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json`                               |
+| `PATCH /db/jobs-final/{id}`            | `python main.py job-manage table patch --table jobs_final --filter-column id --filter-value <UUID> --payload '{"job_status":"APPLIED"}'` |
+| `DELETE /db/jobs-final/{id}/soft`      | `python main.py job-manage table soft-delete --table jobs_final --record-id <UUID>`                                                      |
+| `DELETE /db/jobs-final/{id}`           | `python main.py job-manage table delete --table jobs_final --filter-column id --filter-value <UUID> --treat-404-as-success`              |
+| `POST /enricher/run`                   | `python main.py job-manage enricher enrich --limit 20 --dry-run`                                                                         |
+| `POST /enricher/by-ids`                | `python main.py job-manage enricher by-ids --ids <UUID1>,<UUID2> --dry-run`                                                              |
+| `GET /pipeline/metrics`                | `python main.py job-manage pipeline metrics`                                                                                             |
+
+When users explicitly request API contract behavior (for example exact curl interactions and HTTP status handling), OpenClaw should stay on the HTTP path and apply the startup-and-retry sequence above.
+
+### Concrete Example: Degraded Mode After Startup Failure
+
+Scenario: user asks to list jobs, but API on port `6000` is unavailable.
+
+Execution sequence for OpenClaw:
+
+```bash
+# 1) HTTP preflight for API path
+curl http://localhost:6000/health
+
+# 2) Startup attempt after failed health check
+uv run uvicorn server:app --host 0.0.0.0 --port 6000
+
+# 3) Health retry
+curl http://localhost:6000/health
+
+# 4) Degraded-mode fallback via CLI equivalent
+python main.py job-manage table list --table jobs_final --filter job_status=APPLIED --limit 10
+```
+
+Recommended degraded-mode report text:
+
+```text
+Degraded mode active: API endpoint http://localhost:6000 is unavailable after startup retry.
+Requested API action: GET /db/jobs-final?job_status=APPLIED&limit=10
+Fallback used: python main.py job-manage table list --table jobs_final --filter job_status=APPLIED --limit 10
+Result: completed via CLI fallback.
+```
+
+If no CLI equivalent exists for the requested action, report a blocking error and include the startup command used.
 
 ## Supported Job Boards
 
@@ -75,7 +141,7 @@ This route validates input rows, writes accepted jobs into `jobs_final` with ini
 ### HTTP Submit Example
 
 ```bash
-curl -X POST "http://localhost:8000/pipeline/submit" \
+curl -X POST "http://localhost:6000/pipeline/submit" \
   -H "Content-Type: application/json" \
   -d '{
     "jobs": [
@@ -136,11 +202,11 @@ All supported HTTP routes in this skill operate on the `jobs-final` slug, which 
 `GET /db/jobs-final` supports equality filters through query parameters. Reserved parameters are `columns`, `limit`, `offset`, `order_by`, and `ascending`.
 
 ```bash
-curl "http://localhost:8000/db/jobs-final?job_status=APPLIED&company_name=Acme%20Corp&limit=5"
+curl "http://localhost:6000/db/jobs-final?job_status=APPLIED&company_name=Acme%20Corp&limit=5"
 ```
 
 ```bash
-curl "http://localhost:8000/db/jobs-final?job_status=SAVED&columns=id,company_name,role_title,job_url&order_by=created_at&ascending=false&limit=10"
+curl "http://localhost:6000/db/jobs-final?job_status=SAVED&columns=id,company_name,role_title,job_url&order_by=created_at&ascending=false&limit=10"
 ```
 
 Response shape:
@@ -156,7 +222,7 @@ Response shape:
 ### 2. Get One Job By Id
 
 ```bash
-curl "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
+curl "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
 ```
 
 ### 3. Upsert Jobs
@@ -164,7 +230,7 @@ curl "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
 `POST /db/jobs-final` expects a `rows` array.
 
 ```bash
-curl -X POST "http://localhost:8000/db/jobs-final" \
+curl -X POST "http://localhost:6000/db/jobs-final" \
   -H "Content-Type: application/json" \
   -d '{
     "rows": [
@@ -184,7 +250,7 @@ curl -X POST "http://localhost:8000/db/jobs-final" \
 For the HTTP API, patch payloads must be wrapped in a `payload` object.
 
 ```bash
-curl -X PATCH "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000" \
+curl -X PATCH "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000" \
   -H "Content-Type: application/json" \
   -d '{"payload": {"job_status": "APPLIED"}}'
 ```
@@ -194,11 +260,11 @@ curl -X PATCH "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-44665
 Soft delete sets `is_deleted=true`. The request body is optional. If provided, it supports `hard_delete`.
 
 ```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft"
+curl -X DELETE "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft"
 ```
 
 ```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft" \
+curl -X DELETE "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft" \
   -H "Content-Type: application/json" \
   -d '{"hard_delete": true}'
 ```
@@ -206,13 +272,13 @@ curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-4466
 ### 6. Hard Delete One Job
 
 ```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
+curl -X DELETE "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
 ```
 
 ### 7. Run Enricher
 
 ```bash
-curl -X POST "http://localhost:8000/enricher/run" \
+curl -X POST "http://localhost:6000/enricher/run" \
   -H "Content-Type: application/json" \
   -d '{"limit": 50, "dry_run": true}'
 ```
@@ -222,7 +288,7 @@ curl -X POST "http://localhost:8000/enricher/run" \
 `POST /enricher/by-ids` expects a JSON array of objects, not a wrapped payload.
 
 ```bash
-curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
+curl -X POST "http://localhost:6000/enricher/by-ids?dry_run=true" \
   -H "Content-Type: application/json" \
   -d '[
     {"id": "550e8400-e29b-41d4-a716-446655440000"},
@@ -233,7 +299,7 @@ curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
 ### 9. Pipeline Metrics
 
 ```bash
-curl "http://localhost:8000/pipeline/metrics"
+curl "http://localhost:6000/pipeline/metrics"
 ```
 
 Response shape:
@@ -320,7 +386,7 @@ Always check HTTP status before trusting the response body.
 
 ## Troubleshooting
 
-- **Connection refused on `:8000`**: start the API server first
+- **Connection refused on `:6000`**: start the API server first or continue with CLI fallback commands in this skill
 - **`401 Invalid API key`**: add the `X-API-Key` header when auth is enabled
 - **`404 Unknown table`**: use the hyphenated slug `jobs-final`, not `jobs_final`
 - **`400 Extra inputs are not permitted`**: remove unsupported fields such as `tags`, `remote_type`, or `job_id`
@@ -331,6 +397,4 @@ Always check HTTP status before trusting the response body.
 
 - [supported-job-boards.md](./references/supported-job-boards.md) — exact supported board ids and search guardrails
 - [submit-and-crud-recipes.md](./references/submit-and-crud-recipes.md) — copy-ready submit, CRUD, enrich, and metrics recipes
-- [`../../docs/INTEGRATION.md`](../../docs/INTEGRATION.md) — canonical integration contract
-- [`../../docs/SUPABASE_SCHEMA.md`](../../docs/SUPABASE_SCHEMA.md) — current database schema notes
 - <https://docs.openclaw.ai/tools/creating-skills> — OpenClaw skill format reference

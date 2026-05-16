@@ -76,7 +76,7 @@ uv run python main.py job-search "software engineer" --sites linkedin,indeed --r
 Start the server:
 
 ```bash
-uv run uvicorn server:app --host 0.0.0.0 --port 8000
+uv run uvicorn server:app --host 0.0.0.0 --port 6000
 ```
 
 Start the MCP server:
@@ -111,7 +111,7 @@ python mcp_server.py --help
 Or run with Python directly:
 
 ```bash
-python -m uvicorn server:app --host 0.0.0.0 --port 8000
+python -m uvicorn server:app --host 0.0.0.0 --port 6000
 ```
 
 Or use the VS Code task:
@@ -122,14 +122,14 @@ Task: Start Server (uv)
 
 Open API docs:
 
-- `http://localhost:8000/docs`
-- `http://localhost:8000/redoc`
+- `http://localhost:6000/docs`
+- `http://localhost:6000/redoc`
 
 Quick server checks:
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/tables
+curl http://localhost:6000/health
+curl http://localhost:6000/tables
 ```
 
 Expected health response shape:
@@ -335,7 +335,7 @@ Success response:
 Quick dry-run cURL:
 
 ```bash
-curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
+curl -X POST "http://localhost:6000/enricher/by-ids?dry_run=true" \
   -H "Content-Type: application/json" \
   -d '[{"id":"e27be3e8-f4b2-4dba-a353-0a3c0b7125d4"},{"id":"98fa3757-c584-4849-8e7f-16a3d0881d28"}]'
 ```
@@ -449,7 +449,7 @@ Runs the enrich stage only. Processes SCRAPED jobs and extracts enrichment data 
 - `work_mode` → Normalized work mode (remote, hybrid, on-site, or other)
 
 ```bash
-curl -X POST http://localhost:8000/pipeline/stage/enriched \
+curl -X POST http://localhost:6000/pipeline/stage/enriched \
   -H "Content-Type: application/json" \
   -d '{"limit":20,"dry_run":false}'
 ```
@@ -459,7 +459,7 @@ curl -X POST http://localhost:8000/pipeline/stage/enriched \
 `jobs-final`
 
 ```bash
-curl -X POST http://localhost:8000/db/jobs-final \
+curl -X POST http://localhost:6000/db/jobs-final \
   -H "Content-Type: application/json" \
   -d '{"rows":[{"id":"550e8400-e29b-41d4-a716-446655440000","company_name":"Acme Corp","role_title":"Senior Android Engineer","job_status":"SAVED","job_url":"https://example.com/jobs/123"}]}'
 ```
@@ -467,7 +467,7 @@ curl -X POST http://localhost:8000/db/jobs-final \
 `shared-links`
 
 ```bash
-curl -X POST http://localhost:8000/db/shared-links \
+curl -X POST http://localhost:6000/db/shared-links \
   -H "Content-Type: application/json" \
   -d '{"rows":[{"url":"https://www.linkedin.com/jobs/view/123","source":"android-share-intent"}]}'
 ```

@@ -2,12 +2,14 @@
 
 Copy-ready examples for saving scraped jobs, managing `jobs_final`, and running enrichment.
 
+For OpenClaw fallback behavior when the API on port `6000` is unavailable, use the CLI-first runtime policy in [../SKILL.md](../SKILL.md).
+
 ## Submit Jobs
 
 Primary persistence flow:
 
 ```bash
-curl -X POST "http://localhost:8000/pipeline/submit" \
+curl -X POST "http://localhost:6000/pipeline/submit" \
   -H "Content-Type: application/json" \
   -d '{
     "jobs": [
@@ -43,7 +45,7 @@ Expected response shape:
 ## List Jobs
 
 ```bash
-curl "http://localhost:8000/db/jobs-final?job_status=APPLIED&limit=10"
+curl "http://localhost:6000/db/jobs-final?job_status=APPLIED&limit=10"
 ```
 
 ```bash
@@ -53,7 +55,7 @@ python main.py job-manage table list --table jobs_final --filter job_status=APPL
 ## Get One Job
 
 ```bash
-curl "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
+curl "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
 ```
 
 ```bash
@@ -65,7 +67,7 @@ python main.py job-manage table get --table jobs_final --id 550e8400-e29b-41d4-a
 HTTP patch payloads must wrap fields inside `payload`.
 
 ```bash
-curl -X PATCH "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000" \
+curl -X PATCH "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000" \
   -H "Content-Type: application/json" \
   -d '{"payload": {"job_status": "APPLIED"}}'
 ```
@@ -77,11 +79,11 @@ python main.py job-manage table patch --table jobs_final --filter-column id --fi
 ## Soft-Delete One Job
 
 ```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft"
+curl -X DELETE "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft"
 ```
 
 ```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft" \
+curl -X DELETE "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000/soft" \
   -H "Content-Type: application/json" \
   -d '{"hard_delete": true}'
 ```
@@ -93,7 +95,7 @@ python main.py job-manage table soft-delete --table jobs_final --record-id 550e8
 ## Hard Delete One Job
 
 ```bash
-curl -X DELETE "http://localhost:8000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
+curl -X DELETE "http://localhost:6000/db/jobs-final/550e8400-e29b-41d4-a716-446655440000"
 ```
 
 ```bash
@@ -103,7 +105,7 @@ python main.py job-manage table delete --table jobs_final --filter-column id --f
 ## Upsert Jobs
 
 ```bash
-curl -X POST "http://localhost:8000/db/jobs-final" \
+curl -X POST "http://localhost:6000/db/jobs-final" \
   -H "Content-Type: application/json" \
   -d '{
     "rows": [
@@ -127,7 +129,7 @@ python main.py job-manage table upsert --table jobs_final --payload-file payload
 `/enricher/by-ids` expects a JSON array of `{ "id": "..." }` objects and supports `dry_run` as a query parameter.
 
 ```bash
-curl -X POST "http://localhost:8000/enricher/by-ids?dry_run=true" \
+curl -X POST "http://localhost:6000/enricher/by-ids?dry_run=true" \
   -H "Content-Type: application/json" \
   -d '[
     {"id": "550e8400-e29b-41d4-a716-446655440000"},
@@ -146,7 +148,7 @@ python main.py job-manage enricher by-ids --ids-file payloads/job_ids.json --dry
 ## Pipeline Metrics
 
 ```bash
-curl "http://localhost:8000/pipeline/metrics"
+curl "http://localhost:6000/pipeline/metrics"
 ```
 
 ```bash
