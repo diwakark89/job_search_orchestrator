@@ -46,13 +46,13 @@ Use this skill when the user asks to:
 - If the server has `API_KEY` configured, include `X-API-Key: <value>` on every HTTP request.
 - CLI examples assume you are in the repository root with the project environment available.
 
-## OpenClaw Runtime Policy
+## OpenClaw Runtime Policy: CLI-First Mandatory
 
-OpenClaw should use a **CLI-first fallback strategy** with HTTP available when the user explicitly asks for API/curl behavior.
+OpenClaw must use a **strict CLI-first execution model**. HTTP operations are available only when the user explicitly requests API/curl behavior or when the workflow is HTTP-only.
 
 Execution policy:
 
-1. If the requested operation has a CLI equivalent, run the CLI command first.
+1. **Always attempt CLI first** if a CLI equivalent exists for the requested operation.
 2. If the user explicitly requests HTTP/curl behavior (or the workflow is HTTP-only), check API health on `http://localhost:6000/health`.
 3. If health check fails, attempt to start the server:
 
@@ -66,9 +66,30 @@ Execution policy:
    - Clearly report that API interactions on port `6000` are unavailable.
    - If no CLI equivalent exists for the requested action, stop and report a blocking startup error.
 
-### HTTP To CLI Fallback Map
+### CLI Execution Runbook (Detailed)
 
-| Requested operation (HTTP or workflow) | CLI fallback command                                                                                                                     |
+Use this sequence before any job-manager action:
+
+1. Map the user request to the CLI command in the map below.
+2. Run from repository root with one of these launchers:
+   - `python main.py ...`
+   - `.\\.venv\\Scripts\\python.exe main.py ...` (Windows fallback when interpreter resolution fails)
+3. For submit operations, ensure the input file is either:
+   - a top-level array of job objects, or
+   - an object with a `jobs` array.
+4. Validate submit output keys:
+   - `submitted_row_count`
+   - `accepted` with `count` and `ids`
+   - `queued` with `count` and `ids`
+   - `rejected_row_indexes`
+   - `errors`
+   - `jobs_final_row_count`
+5. Submit output does **not** include `shared_links_row_count`.
+6. If CLI fails due environment/configuration, report the blocker and the exact fix command before trying HTTP.
+
+### CLI Command Map (Use First)
+
+| Requested operation (HTTP or workflow) | CLI command                                                                                                                              |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Search jobs                            | `python main.py job-search "software engineer" --sites linkedin,indeed --results 5`                                                      |
 | `POST /pipeline/submit`                | `python main.py job-manage pipeline submit payloads/jobs_raw.json`                                                                       |
@@ -133,10 +154,12 @@ job-search "data scientist" --sites linkedin,glassdoor --results 3 --country ger
 
 When the user wants to **save scraped jobs to the database**, the primary flow is:
 
-- HTTP: `POST /pipeline/submit`
-- CLI: `python main.py job-manage pipeline submit <file.json>`
+- CLI: `python main.py job-manage pipeline submit <file.json>` (default path)
+- HTTP: `POST /pipeline/submit` (only when API/curl behavior is explicitly requested)
 
-This route validates input rows, writes accepted jobs into `jobs_final` with initial `job_status=SCRAPED`, and queues asynchronous enrichment. It returns **HTTP 202** immediately.
+Both paths validate input rows and write accepted jobs into `jobs_final` with initial `job_status=SCRAPED`.
+The API route returns **HTTP 202** and starts in-process background enrichment for accepted ids.
+The CLI command returns submit summary JSON directly (including `jobs_final_row_count` and excluding `shared_links_row_count`).
 
 ### HTTP Submit Example
 

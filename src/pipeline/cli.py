@@ -122,7 +122,6 @@ def cmd_submit(
         "rejected_row_indexes": result.rejected_row_indexes,
         "errors": result.errors,
         "jobs_final_row_count": result.jobs_final_row_count,
-        "shared_links_row_count": result.shared_links_row_count,
     }
     print(json.dumps(payload, indent=2, default=str))
 

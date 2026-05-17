@@ -751,8 +751,7 @@ Supported request and response:
   "errors": [
     "row[1]: Extra inputs are not permitted"
   ],
-  "jobs_final_row_count": 1,
-  "shared_links_row_count": 1
+  "jobs_final_row_count": 1
 }
 ```
 
