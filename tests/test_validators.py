@@ -91,6 +91,8 @@ class TestJobsFinalValidator:
     def test_all_display_forms_normalise_to_uppercase(self):
         cases = {
             "Saved": "SAVED",
+            "Ready-To-Apply": "READY_TO_APPLY",
+            "Waiting-Confirmation": "WAITING_CONFIRMATION",
             "Applied": "APPLIED",
             "Interview": "INTERVIEW",
             "Interviewing": "INTERVIEWING",
@@ -102,6 +104,16 @@ class TestJobsFinalValidator:
             rows = [{"job_status": display}]
             result = validate_jobs_final_rows(rows)
             assert result[0]["job_status"] == expected, f"{display} should normalise to {expected}"
+
+    def test_ready_to_apply_job_status_valid(self):
+        rows = [{"job_status": "READY_TO_APPLY"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["job_status"] == "READY_TO_APPLY"
+
+    def test_waiting_confirmation_job_status_valid(self):
+        rows = [{"job_status": "WAITING_CONFIRMATION"}]
+        result = validate_jobs_final_rows(rows)
+        assert result[0]["job_status"] == "WAITING_CONFIRMATION"
 
     def test_valid_decision(self):
         rows = [{"decision": "AUTO_APPROVE"}]

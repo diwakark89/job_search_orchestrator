@@ -64,6 +64,8 @@ create table public.jobs_final (
             'SCRAPED'::text,
             'ENRICHED'::text,
             'SAVED'::text,
+            'READY_TO_APPLY'::text,
+            'WAITING_CONFIRMATION'::text,
             'APPLIED'::text,
             'INTERVIEW'::text,
             'INTERVIEWING'::text,

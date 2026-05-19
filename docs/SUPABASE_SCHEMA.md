@@ -37,24 +37,26 @@ Primary table for all job listings from ingest through enrichment.
 ### Status Transitions
 
 ```
-SCRAPED  →  ENRICHED  →  (APPLIED | REJECTED | SAVED)
+SCRAPED  →  ENRICHED  →  SAVED  →  READY_TO_APPLY  →  WAITING_CONFIRMATION  →  APPLIED
 ```
 
 | Status | Set by |
 |--------|--------|
 | `SCRAPED` | Ingest stage (pipeline or submit endpoint) |
 | `ENRICHED` | Enricher service |
+| `SAVED` | Pipeline submit background enrichment / manual save |
+| `READY_TO_APPLY` | Android approval action |
+| `WAITING_CONFIRMATION` | Automation pause before final submit |
 | `APPLIED` | Manual / automation |
-| `REJECTED` | Manual / automation |
-| `SAVED` | Default for manually added rows |
+| `INTERVIEW`, `INTERVIEWING`, `OFFER`, `RESUME_REJECTED`, `INTERVIEW_REJECTED` | Post-application lifecycle updates |
 
 ### Valid `job_type` Values
 
-`fulltime`, `parttime`, `internship`, `contract`
+`fulltime`, `parttime`, `internship`, `contract`, `temporary`, `other`
 
 ### Valid `work_mode` Values
 
-`remote`, `hybrid`, `on-site`
+`remote`, `hybrid`, `on-site`, `other`
 
 ---
 

@@ -11,7 +11,7 @@ from api.security import require_api_key
 app = FastAPI(
     title="Automated Job Hunt Orchestrator API",
     version="0.1.0",
-    description="HTTP API for Supabase table operations and job orchestration.",
+    description="HTTP API for Supabase table operations, enrichment, and pipeline execution.",
 )
 
 # Unauthenticated: health and table discovery are public read-only endpoints.

@@ -26,6 +26,8 @@ JOB_STATUS_VALUES: set[str] = {
     "SCRAPED",
     "ENRICHED",
     "SAVED",
+    "READY_TO_APPLY",
+    "WAITING_CONFIRMATION",
     "APPLIED",
     "INTERVIEW",
     "INTERVIEWING",
@@ -38,6 +40,8 @@ JOB_STATUS_VALUES: set[str] = {
 # Used by the validator to accept case-insensitive input.
 _JOB_STATUS_ALIASES: dict[str, str] = {
     "saved": "SAVED",
+    "ready-to-apply": "READY_TO_APPLY",
+    "waiting-confirmation": "WAITING_CONFIRMATION",
     "applied": "APPLIED",
     "interview": "INTERVIEW",
     "interviewing": "INTERVIEWING",

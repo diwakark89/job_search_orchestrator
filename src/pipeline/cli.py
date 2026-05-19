@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import typer
 from rich import print
@@ -12,12 +14,18 @@ from common.config import load_config
 from job_enricher.client_copilot import CopilotClient
 from job_enricher.config import load_copilot_config
 from repository.supabase import SupabaseRepository
+from scraping.service import JobSearchRequest, search_jobs
 from service.pipeline import run_pipeline, run_stage_enriched, run_stage_ingest, submit_jobs_for_enrichment
 from service.tables import get_metrics
 
 from .models import PipelineResult, StageResult
 
 app = typer.Typer(help="Pipeline runner: ingest → enrich (all in jobs_final).")
+
+
+def _new_run_id() -> str:
+    timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"daily-{timestamp}-{uuid4().hex[:8]}"
 
 
 def _print_stage(result: StageResult) -> None:
@@ -132,3 +140,65 @@ def cmd_metrics() -> None:
     repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
     metrics = get_metrics(repo=repo)
     print(json.dumps(metrics, indent=2, default=str))
+
+
+@app.command("daily-submit")
+def cmd_daily_submit(
+    search_term: str = typer.Option(..., "--search-term", help="Job search keywords."),
+    cities: str | None = typer.Option(None, "--cities", help="Comma-separated city list."),
+    country: str | None = typer.Option(None, "--country", help="Country override for search sources."),
+    sites: str = typer.Option("linkedin", "--sites", help="Comma-separated site list."),
+    requested_results: int = typer.Option(
+        20,
+        "--requested-results",
+        min=1,
+        help="Requested scrape size before daily cap is applied.",
+    ),
+    daily_cap: int = typer.Option(
+        10,
+        "--daily-cap",
+        min=1,
+        max=50,
+        help="Maximum jobs submitted in one daily run.",
+    ),
+    hours_old: int = typer.Option(24, "--hours-old", help="Only return jobs posted within the last N hours."),
+    easy_apply: bool = typer.Option(False, "--easy-apply", help="Filter for easy-apply jobs."),
+) -> None:
+    """Run daily scrape and submit accepted rows for enrichment with a hard cap."""
+
+    site_values = [item.strip() for item in sites.split(",") if item.strip()]
+    city_values = [item.strip() for item in cities.split(",") if item.strip()] if cities else None
+    run_id = _new_run_id()
+
+    scrape_result = search_jobs(
+        JobSearchRequest(
+            search_term=search_term,
+            cities=city_values,
+            site_name=site_values,
+            results_wanted=requested_results,
+            hours_old=hours_old,
+            easy_apply=easy_apply,
+            country_indeed=country,
+        )
+    )
+
+    scraped_jobs = scrape_result.jobs
+    capped_jobs = scraped_jobs[:daily_cap]
+
+    repo = SupabaseRepository(client=PostgrestClient(config=load_config()))
+    submit_result = submit_jobs_for_enrichment(repo=repo, rows=capped_jobs)
+
+    payload = {
+        "run_id": run_id,
+        "search_term": scrape_result.search_term,
+        "scraped_count": len(scraped_jobs),
+        "submitted_count": len(capped_jobs),
+        "daily_cap": daily_cap,
+        "accepted": {"count": len(submit_result.accepted_ids), "ids": submit_result.accepted_ids},
+        "queued": {"count": len(submit_result.accepted_ids), "ids": submit_result.accepted_ids},
+        "rejected_row_indexes": submit_result.rejected_row_indexes,
+        "errors": submit_result.errors,
+        "jobs_final_row_count": submit_result.jobs_final_row_count,
+        "site_errors": scrape_result.site_errors or [],
+    }
+    print(json.dumps(payload, indent=2, default=str))

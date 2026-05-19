@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from automation_sessions.cli import app
 from common.client import OperationResult
+from service.automation import AutomationConflictError
 
 
 runner = CliRunner()
@@ -144,3 +145,107 @@ def test_cli_delete_uses_idempotent_default() -> None:
         filters={"id": "aaaaaaaa-0000-0000-0000-000000000001"},
         treat_404_as_success=True,
     )
+
+
+def test_cli_approve_job_calls_automation_service() -> None:
+    repo = MagicMock()
+
+    with (
+        patch("automation_sessions.cli.load_config", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.PostgrestClient", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.SupabaseRepository", MagicMock(return_value=repo)),
+        patch(
+            "automation_sessions.cli.approve_job_for_apply",
+            MagicMock(
+                return_value={
+                    "job_id": "job-1",
+                    "action": "APPROVE",
+                    "job_status": "READY_TO_APPLY",
+                    "user_action": "APPROVED",
+                    "approved_at": "2026-05-19T10:00:00.000Z",
+                }
+            ),
+        ) as approve_mock,
+    ):
+        result = runner.invoke(app, ["approve-job", "--job-id", "job-1"])
+
+    assert result.exit_code == 0
+    approve_mock.assert_called_once_with(repo=repo, job_id="job-1")
+
+
+def test_cli_reject_job_calls_automation_service() -> None:
+    repo = MagicMock()
+
+    with (
+        patch("automation_sessions.cli.load_config", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.PostgrestClient", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.SupabaseRepository", MagicMock(return_value=repo)),
+        patch(
+            "automation_sessions.cli.reject_job_for_apply",
+            MagicMock(
+                return_value={
+                    "job_id": "job-1",
+                    "action": "REJECT",
+                    "job_status": "SAVED",
+                    "user_action": "REJECTED",
+                    "approved_at": None,
+                }
+            ),
+        ) as reject_mock,
+    ):
+        result = runner.invoke(app, ["reject-job", "--job-id", "job-1"])
+
+    assert result.exit_code == 0
+    reject_mock.assert_called_once_with(repo=repo, job_id="job-1")
+
+
+def test_cli_create_apply_session_calls_automation_service() -> None:
+    repo = MagicMock()
+
+    with (
+        patch("automation_sessions.cli.load_config", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.PostgrestClient", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.SupabaseRepository", MagicMock(return_value=repo)),
+        patch(
+            "automation_sessions.cli.create_apply_session_for_job",
+            MagicMock(
+                return_value={
+                    "session_id": "session-1",
+                    "job_id": "job-1",
+                    "session_status": "RUNNING",
+                    "current_step": "OPEN_JOB_PAGE",
+                }
+            ),
+        ) as create_mock,
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "create-apply-session",
+                "--job-id",
+                "job-1",
+                "--current-step",
+                "OPEN_JOB_PAGE",
+            ],
+        )
+
+    assert result.exit_code == 0
+    create_mock.assert_called_once_with(repo=repo, job_id="job-1", current_step="OPEN_JOB_PAGE")
+
+
+def test_cli_create_apply_session_conflict_returns_non_zero() -> None:
+    repo = MagicMock()
+
+    with (
+        patch("automation_sessions.cli.load_config", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.PostgrestClient", MagicMock(return_value=object())),
+        patch("automation_sessions.cli.SupabaseRepository", MagicMock(return_value=repo)),
+        patch(
+            "automation_sessions.cli.create_apply_session_for_job",
+            MagicMock(side_effect=AutomationConflictError("active session exists")),
+        ),
+    ):
+        result = runner.invoke(app, ["create-apply-session", "--job-id", "job-1"])
+
+    assert result.exit_code == 1
+    assert "active session exists" in result.stdout

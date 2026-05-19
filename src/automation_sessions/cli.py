@@ -10,6 +10,12 @@ from rich import print
 from common.client import OperationResult, PostgrestClient
 from common.config import load_config
 from repository.supabase import SupabaseRepository
+from service.automation import (
+    AutomationConflictError,
+    approve_job_for_apply,
+    create_apply_session_for_job,
+    reject_job_for_apply,
+)
 
 app = typer.Typer(help="Automation session operations for OpenClaw.")
 
@@ -84,6 +90,10 @@ def _print_result(result: OperationResult) -> None:
 
 def _print_select_result(rows: list[dict[str, Any]]) -> None:
     print(json.dumps({"rows": rows, "count": len(rows), "table": _TABLE}, indent=2, default=str))
+
+
+def _print_json_payload(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, indent=2, default=str))
 
 
 @app.command("create")
@@ -171,3 +181,60 @@ def cmd_delete(
         treat_404_as_success=treat_404_as_success,
     )
     _print_result(result)
+
+
+@app.command("approve-job")
+def cmd_approve_job(
+    job_id: str = typer.Option(..., "--job-id", help="jobs_final row id to approve for automation."),
+) -> None:
+    try:
+        payload = approve_job_for_apply(repo=_repo(), job_id=job_id)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except RuntimeError as exc:
+        print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_json_payload(payload)
+
+
+@app.command("reject-job")
+def cmd_reject_job(
+    job_id: str = typer.Option(..., "--job-id", help="jobs_final row id to reject for automation."),
+) -> None:
+    try:
+        payload = reject_job_for_apply(repo=_repo(), job_id=job_id)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except RuntimeError as exc:
+        print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_json_payload(payload)
+
+
+@app.command("create-apply-session")
+def cmd_create_apply_session(
+    job_id: str = typer.Option(..., "--job-id", help="jobs_final row id that is READY_TO_APPLY."),
+    current_step: str = typer.Option(
+        "OPEN_JOB_PAGE",
+        "--current-step",
+        help="Initial automation step name.",
+    ),
+) -> None:
+    try:
+        payload = create_apply_session_for_job(
+            repo=_repo(),
+            job_id=job_id,
+            current_step=current_step,
+        )
+    except AutomationConflictError as exc:
+        print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except RuntimeError as exc:
+        print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_json_payload(payload)

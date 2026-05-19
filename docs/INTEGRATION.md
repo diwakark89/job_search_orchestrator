@@ -36,6 +36,8 @@ The supported external surfaces are:
 - Installed scripts `job-search` and `job-search-mcp-server`
 - Python imports through `common`, `repository`, and `service`
 
+Lifecycle orchestration for automation (approve/reject/create-apply-session) is intentionally CLI-only and is not exposed via HTTP routes.
+
 Legacy HTTP routes and the old CLI command group are no longer part of the supported contract.
 
 ## 1.3 CLI Migration Note
@@ -179,6 +181,7 @@ pip install -r requirements.txt
 | Insert rows | `job-manage table insert` | `repo.insert_rows`, `insert_shared_links` | insert-only flows | `POST /db/{table}` | Used when no default upsert key exists |
 | Patch rows | `job-manage table patch` | `repo.patch_rows` | all tables | `PATCH /db/{table}/{record_id}` | |
 | Automation session CRUD | `job-manage automation-session <create\|list\|get\|patch\|delete>` | `repo.upsert_rows`, `repo.select_rows`, `repo.patch_rows`, `repo.delete_rows` | `automation_sessions` | `POST/GET/PATCH/DELETE /db/automation-sessions*` | Dedicated OpenClaw CLI wrappers over the generic table API |
+| Automation lifecycle (CLI-only) | `job-manage automation-session <approve-job\|reject-job\|create-apply-session>` | `service.automation.approve_job_for_apply`, `reject_job_for_apply`, `create_apply_session_for_job` | `jobs_final`, `automation_sessions` | n/a | Not exposed as HTTP endpoints by design |
 | Hard delete | `job-manage table delete`, `job-manage table delete-jobs-final` | `repo.delete_rows`, `delete_jobs_final_by_id` | all tables | `DELETE /db/{table}/{record_id}` | 404 may be treated as success |
 | Soft delete helper | `job-manage table soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
 | Get metrics | `job-manage pipeline metrics` | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
@@ -968,6 +971,9 @@ Supported request and response:
 ```bash
 uv run python main.py job-manage table tables
 uv run python main.py job-manage automation-session create --payload '{"job_id":"550e8400-e29b-41d4-a716-446655440000","automation_type":"JOB_APPLY","session_status":"RUNNING"}'
+uv run python main.py job-manage automation-session approve-job --job-id 550e8400-e29b-41d4-a716-446655440000
+uv run python main.py job-manage automation-session reject-job --job-id 550e8400-e29b-41d4-a716-446655440000
+uv run python main.py job-manage automation-session create-apply-session --job-id 550e8400-e29b-41d4-a716-446655440000 --current-step OPEN_JOB_PAGE
 uv run python main.py job-manage automation-session list --filter session_status=RUNNING --limit 10
 uv run python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
 uv run python main.py job-manage table patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
