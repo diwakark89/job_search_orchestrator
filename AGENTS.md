@@ -181,13 +181,14 @@ docs/              → Integration guide and API skill reference
 
 | Slug (HTTP) | Table Name (DB) | Conflict Key | Notes |
 |-------------|-----------------|--------------|-------|
+| `automation-sessions` | `automation_sessions` | `id` | Tracks OpenClaw automation state per job |
 | `jobs-final` | `jobs_final` | `id` | Supports soft delete |
 | `shared-links` | `shared_links` | `url` | |
 
 ## Security Considerations
 
 - **Never commit secrets**: `SUPABASE_URL` and `SUPABASE_KEY` must be stored in `.env` (git-ignored) or injected via environment — never hardcoded.
-- **Key scope**: Use a scoped Supabase service-role key with the minimum permissions required (read + write to `jobs_final` and `shared_links` only).
+- **Key scope**: Use a scoped Supabase service-role key with the minimum permissions required (read + write to `automation_sessions`, `jobs_final`, and `shared_links` only).
 - **Input validation**: All inbound data is validated through Pydantic models with `extra="forbid"` before reaching the repository layer.
 - **No SQL construction**: The repository layer uses Supabase PostgREST — no raw SQL strings are built from user input, preventing SQL injection.
 - **LLM output sanitisation**: Copilot SDK responses are parsed by `extractors.py` and re-validated against Pydantic models before being written to the database.

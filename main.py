@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import typer
 
+from automation_sessions.cli import app as automation_session_app
 from job_enricher.cli import app as enricher_app
 from pipeline.cli import app as pipeline_app
 from common.cli import app as db_app
@@ -13,6 +14,7 @@ from scraping.guardrails import FETCH_DESCRIPTIONS_DEFAULT
 
 app = typer.Typer(help="Automated Job Hunt orchestration CLI.")
 job_manage_app = typer.Typer(help="Unified job management CLI for table, pipeline, and enricher operations.")
+job_manage_app.add_typer(automation_session_app, name="automation-session")
 job_manage_app.add_typer(db_app, name="table")
 job_manage_app.add_typer(pipeline_app, name="pipeline")
 job_manage_app.add_typer(enricher_app, name="enricher")

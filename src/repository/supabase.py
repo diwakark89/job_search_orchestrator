@@ -5,6 +5,7 @@ from typing import Any
 from common.client import OperationResult, PostgrestClient
 from common.constants import DEFAULT_CONFLICT_KEYS, VALID_TABLES
 from common.validators import (
+    validate_automation_sessions_rows,
     validate_jobs_final_rows,
 )
 
@@ -24,6 +25,8 @@ class SupabaseRepository:
         rows: list[dict[str, Any]],
         preserve_fields: tuple[str, ...] = (),
     ) -> list[dict[str, Any]]:
+        if table == "automation_sessions":
+            return validate_automation_sessions_rows(rows, preserve_fields=preserve_fields)
         if table == "jobs_final":
             return validate_jobs_final_rows(rows, preserve_fields=preserve_fields)
         raise ValueError(f"No validator configured for table '{table}'.")

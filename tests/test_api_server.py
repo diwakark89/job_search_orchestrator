@@ -33,7 +33,9 @@ def test_tables_endpoint_lists_supported_tables() -> None:
 
     assert response.status_code == 200
     payload = response.json()
+    assert "automation_sessions" in payload["tables"]
     assert "jobs_final" in payload["tables"]
+    assert payload["default_conflict_keys"]["automation_sessions"] == "id"
     assert payload["default_conflict_keys"]["jobs_final"] == "id"
 
 
@@ -116,6 +118,66 @@ def test_db_create_rows_success(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
+    assert payload["operation"] == "upsert"
+
+
+def test_db_list_automation_sessions_success(monkeypatch) -> None:
+    import api.routes.tables as tables_module
+
+    repo = MagicMock()
+    repo.select_rows.return_value = OperationResult(
+        True,
+        200,
+        "automation_sessions",
+        "select",
+        1,
+        data=[{"id": "aaaaaaaa-0000-0000-0000-000000000001", "session_status": "RUNNING"}],
+    )
+    monkeypatch.setattr(tables_module, "_repo", MagicMock(return_value=repo))
+
+    client = _make_client()
+    response = client.get("/db/automation-sessions?session_status=RUNNING&limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["table"] == "automation_sessions"
+    assert payload["count"] == 1
+    repo.select_rows.assert_called_once_with(
+        table="automation_sessions",
+        columns="*",
+        filters={"session_status": "RUNNING"},
+        limit=10,
+        offset=0,
+        order_by=None,
+        ascending=True,
+    )
+
+
+def test_db_create_automation_sessions_success(monkeypatch) -> None:
+    import api.routes.tables as tables_module
+
+    repo = MagicMock()
+    repo.upsert_rows.return_value = OperationResult(True, 201, "automation_sessions", "upsert", 1)
+    monkeypatch.setattr(tables_module, "_repo", MagicMock(return_value=repo))
+
+    client = _make_client()
+    response = client.post(
+        "/db/automation-sessions",
+        json={
+            "rows": [
+                {
+                    "job_id": "bbbbbbbb-0000-0000-0000-000000000001",
+                    "automation_type": "JOB_APPLY",
+                    "session_status": "RUNNING",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["table"] == "automation_sessions"
     assert payload["operation"] == "upsert"
 
 

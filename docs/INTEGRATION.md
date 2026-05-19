@@ -131,6 +131,7 @@ Execution behavior:
 
 ## 3. Supported Tables
 
+- `automation_sessions`
 - `jobs_final`
 - `shared_links`
 
@@ -177,6 +178,7 @@ pip install -r requirements.txt
 | Upsert rows | `job-manage table upsert` | `repo.upsert_rows`, `upsert_jobs_final` | tables with conflict keys | `POST /db/{table}` | Defaults from `DEFAULT_CONFLICT_KEYS` |
 | Insert rows | `job-manage table insert` | `repo.insert_rows`, `insert_shared_links` | insert-only flows | `POST /db/{table}` | Used when no default upsert key exists |
 | Patch rows | `job-manage table patch` | `repo.patch_rows` | all tables | `PATCH /db/{table}/{record_id}` | |
+| Automation session CRUD | `job-manage automation-session <create\|list\|get\|patch\|delete>` | `repo.upsert_rows`, `repo.select_rows`, `repo.patch_rows`, `repo.delete_rows` | `automation_sessions` | `POST/GET/PATCH/DELETE /db/automation-sessions*` | Dedicated OpenClaw CLI wrappers over the generic table API |
 | Hard delete | `job-manage table delete`, `job-manage table delete-jobs-final` | `repo.delete_rows`, `delete_jobs_final_by_id` | all tables | `DELETE /db/{table}/{record_id}` | 404 may be treated as success |
 | Soft delete helper | `job-manage table soft-delete` | `soft_delete_jobs_final` | `jobs_final` | `DELETE /db/{table}/{record_id}/soft` | Soft delete only on `jobs_final` |
 | Get metrics | `job-manage pipeline metrics` | `get_metrics` | `jobs_final` | `GET /pipeline/metrics` | Dynamic `COUNT(*) GROUP BY job_status` |
@@ -239,10 +241,12 @@ Supported request and response:
 ```json
 {
   "tables": [
+    "automation_sessions",
     "jobs_final",
     "shared_links"
   ],
   "default_conflict_keys": {
+    "automation_sessions": "id",
     "jobs_final": "id",
     "shared_links": "url"
   }
@@ -255,6 +259,7 @@ All table endpoints use these slug-to-table mappings:
 
 | URL slug | Database table | Primary key |
 | --- | --- | --- |
+| `automation-sessions` | `automation_sessions` | `id` |
 | `jobs-final` | `jobs_final` | `id` |
 | `shared-links` | `shared_links` | `id` |
 
@@ -308,7 +313,7 @@ Supported request and response:
 
 ```json
 {
-  "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
+  "detail": "Unknown table 'not-a-table'. Available: ['automation-sessions', 'jobs-final', 'shared-links']"
 }
 ```
 
@@ -479,7 +484,7 @@ Supported request and response:
 
 ```json
 {
-  "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
+  "detail": "Unknown table 'not-a-table'. Available: ['automation-sessions', 'jobs-final', 'shared-links']"
 }
 ```
 
@@ -542,6 +547,16 @@ If `hard_delete=true`, the service performs soft delete first and then hard dele
 ### 6.2.1 Per-table add and write examples
 
 The examples below show the supported write path for every table. Response bodies follow the generic success and error envelopes documented above.
+
+#### `automation-sessions`
+
+Add or update one automation session row:
+
+```bash
+curl -X POST http://localhost:8000/db/automation-sessions \
+  -H "Content-Type: application/json" \
+  -d '{"rows":[{"job_id":"550e8400-e29b-41d4-a716-446655440000","automation_type":"JOB_APPLY","session_status":"RUNNING","current_step":"OPEN_JOB_PAGE"}]}'
+```
 
 #### `jobs-final`
 
@@ -952,6 +967,8 @@ Supported request and response:
 
 ```bash
 uv run python main.py job-manage table tables
+uv run python main.py job-manage automation-session create --payload '{"job_id":"550e8400-e29b-41d4-a716-446655440000","automation_type":"JOB_APPLY","session_status":"RUNNING"}'
+uv run python main.py job-manage automation-session list --filter session_status=RUNNING --limit 10
 uv run python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
 uv run python main.py job-manage table patch --table jobs_final --filter-column id --filter-value 550e8400-e29b-41d4-a716-446655440000 --payload '{"job_status":"APPLIED"}'
 uv run python main.py job-manage pipeline submit payloads/jobs_raw.json

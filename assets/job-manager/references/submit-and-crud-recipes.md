@@ -124,6 +124,59 @@ curl -X POST "http://localhost:6000/db/jobs-final" \
 python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json
 ```
 
+## Create Automation Session
+
+```bash
+curl -X POST "http://localhost:6000/db/automation-sessions" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rows": [
+      {
+        "job_id": "550e8400-e29b-41d4-a716-446655440000",
+        "automation_type": "JOB_APPLY",
+        "session_status": "RUNNING",
+        "current_step": "OPEN_JOB_PAGE"
+      }
+    ]
+  }'
+```
+
+```bash
+python main.py job-manage automation-session create --payload '{"job_id":"550e8400-e29b-41d4-a716-446655440000","automation_type":"JOB_APPLY","session_status":"RUNNING","current_step":"OPEN_JOB_PAGE"}'
+```
+
+## List Automation Sessions
+
+```bash
+curl "http://localhost:6000/db/automation-sessions?session_status=RUNNING&limit=10"
+```
+
+```bash
+python main.py job-manage automation-session list --filter session_status=RUNNING --limit 10
+```
+
+## Patch Automation Session
+
+```bash
+curl -X PATCH "http://localhost:6000/db/automation-sessions/550e8400-e29b-41d4-a716-446655440000" \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"session_status": "WAITING_USER", "current_step": "FINAL_REVIEW"}}'
+```
+
+```bash
+python main.py job-manage automation-session patch --id 550e8400-e29b-41d4-a716-446655440000 --payload '{"session_status":"WAITING_USER","current_step":"FINAL_REVIEW"}'
+```
+
+## Delete Automation Session
+
+```bash
+curl -X DELETE "http://localhost:6000/db/automation-sessions/550e8400-e29b-41d4-a716-446655440000"
+```
+
+```bash
+python main.py job-manage automation-session delete --id 550e8400-e29b-41d4-a716-446655440000
+```
+
 ## Enrich By Ids
 
 `/enricher/by-ids` expects a JSON array of `{ "id": "..." }` objects and supports `dry_run` as a query parameter.

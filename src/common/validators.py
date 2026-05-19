@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from .constants import (
     APPROVAL_VALUES,
+    AUTOMATION_SESSION_STATUS_VALUES,
+    AUTOMATION_TYPE_VALUES,
     DECISION_VALUES,
     JOB_STATUS_VALUES,
     JOB_TYPE_VALUES,
@@ -109,6 +111,43 @@ class JobsFinalRow(BaseModel):
         return value
 
 
+class AutomationSessionsRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str | None = None
+    job_id: str
+    automation_type: str
+    session_status: str = "RUNNING"
+    current_step: str | None = None
+    browser_state_path: str | None = None
+    screenshot_path: str | None = None
+    last_error: str | None = None
+    retry_count: int = 0
+    started_at: str | int | float | datetime | None = None
+    updated_at: str | int | float | datetime | None = None
+
+    @field_validator("automation_type")
+    @classmethod
+    def validate_automation_type(cls, value: str) -> str:
+        if value not in AUTOMATION_TYPE_VALUES:
+            raise ValueError(f"Invalid automation_type '{value}'.")
+        return value
+
+    @field_validator("session_status")
+    @classmethod
+    def validate_session_status(cls, value: str) -> str:
+        if value not in AUTOMATION_SESSION_STATUS_VALUES:
+            raise ValueError(f"Invalid session_status '{value}'.")
+        return value
+
+    @field_validator("retry_count")
+    @classmethod
+    def validate_retry_count(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("retry_count must be >= 0.")
+        return value
+
+
 def _validate_rows(
     rows: list[dict[str, Any]],
     model: type[BaseModel],
@@ -132,3 +171,15 @@ def validate_jobs_final_rows(
     preserve_fields: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     return _validate_rows(rows, JobsFinalRow, ("saved_at", "modified_at", "approved_at"), preserve_fields)
+
+
+def validate_automation_sessions_rows(
+    rows: list[dict[str, Any]],
+    preserve_fields: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    return _validate_rows(
+        rows,
+        AutomationSessionsRow,
+        ("started_at", "updated_at"),
+        preserve_fields,
+    )

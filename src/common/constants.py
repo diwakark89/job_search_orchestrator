@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 DEFAULT_CONFLICT_KEYS: dict[str, str] = {
+    "automation_sessions": "id",
     "jobs_final": "id",
 }
 
 VALID_TABLES: set[str] = {
+    "automation_sessions",
     "jobs_final",
+}
+
+AUTOMATION_TYPE_VALUES: set[str] = {
+    "JOB_APPLY",
+}
+
+AUTOMATION_SESSION_STATUS_VALUES: set[str] = {
+    "RUNNING",
+    "WAITING_USER",
+    "RESUMING",
+    "COMPLETED",
+    "FAILED",
 }
 
 JOB_STATUS_VALUES: set[str] = {

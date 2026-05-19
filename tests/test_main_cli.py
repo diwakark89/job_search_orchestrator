@@ -26,6 +26,7 @@ def test_job_manage_help_shows_subgroups() -> None:
     result = runner.invoke(main_cli.app, ["job-manage", "--help"])
 
     assert result.exit_code == 0
+    assert "automation-session" in result.stdout
     assert "table" in result.stdout
     assert "pipeline" in result.stdout
     assert "enricher" in result.stdout

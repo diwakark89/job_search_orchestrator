@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from common.validators import (
+    validate_automation_sessions_rows,
     validate_jobs_final_rows,
 )
 
@@ -175,5 +176,50 @@ class TestJobsFinalValidator:
         rows = [{"tags": ["python", "fastapi"]}]
         with pytest.raises(Exception):
             validate_jobs_final_rows(rows)
+
+
+class TestAutomationSessionsValidator:
+    def test_minimal_valid_row(self):
+        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY"}]
+        result = validate_automation_sessions_rows(rows)
+        assert len(result) == 1
+        assert result[0]["job_id"] == "aaaaaaaa-0000-0000-0000-000000000001"
+        assert result[0]["automation_type"] == "JOB_APPLY"
+        assert result[0]["session_status"] == "RUNNING"
+
+    def test_id_omitted_by_default(self):
+        rows = [{"id": "aaaaaaaa-0000-0000-0000-000000000001", "job_id": "bbbbbbbb-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY"}]
+        result = validate_automation_sessions_rows(rows)
+        assert "id" not in result[0]
+
+    def test_id_preserved_for_upsert_conflict(self):
+        rows = [{"id": "aaaaaaaa-0000-0000-0000-000000000001", "job_id": "bbbbbbbb-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY"}]
+        result = validate_automation_sessions_rows(rows, preserve_fields=("id",))
+        assert result[0]["id"] == "aaaaaaaa-0000-0000-0000-000000000001"
+
+    def test_invalid_automation_type_rejected(self):
+        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "automation_type": "OTHER"}]
+        with pytest.raises(Exception):
+            validate_automation_sessions_rows(rows)
+
+    def test_invalid_session_status_rejected(self):
+        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY", "session_status": "PAUSED"}]
+        with pytest.raises(Exception):
+            validate_automation_sessions_rows(rows)
+
+    def test_negative_retry_count_rejected(self):
+        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY", "retry_count": -1}]
+        with pytest.raises(Exception):
+            validate_automation_sessions_rows(rows)
+
+    def test_started_at_epoch_normalized(self):
+        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY", "started_at": 1743674410421}]
+        result = validate_automation_sessions_rows(rows)
+        assert result[0]["started_at"].endswith("Z")
+
+    def test_extra_field_rejected(self):
+        rows = [{"job_id": "aaaaaaaa-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY", "unexpected": "x"}]
+        with pytest.raises(Exception):
+            validate_automation_sessions_rows(rows)
 
 

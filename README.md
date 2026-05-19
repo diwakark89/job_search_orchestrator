@@ -151,6 +151,7 @@ System endpoints:
 
 Table endpoints use the consolidated `/db/{table}` contract. Supported table slugs are:
 
+- `automation-sessions`
 - `jobs-final`
 - `shared-links`
 
@@ -193,8 +194,9 @@ Success response:
 
 ```json
 {
-  "tables": ["jobs_final", "shared_links"],
+  "tables": ["automation_sessions", "jobs_final", "shared_links"],
   "default_conflict_keys": {
+    "automation_sessions": "id",
     "jobs_final": "id",
     "shared_links": "url"
   }
@@ -223,7 +225,7 @@ Common error:
 
 ```json
 {
-  "detail": "Unknown table 'not-a-table'. Available: ['jobs-final', 'shared-links']"
+  "detail": "Unknown table 'not-a-table'. Available: ['automation-sessions', 'jobs-final', 'shared-links']"
 }
 ```
 

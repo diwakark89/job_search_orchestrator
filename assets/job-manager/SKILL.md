@@ -99,6 +99,11 @@ Use this sequence before any job-manager action:
 | `PATCH /db/jobs-final/{id}`            | `python main.py job-manage table patch --table jobs_final --filter-column id --filter-value <UUID> --payload '{"job_status":"APPLIED"}'` |
 | `DELETE /db/jobs-final/{id}/soft`      | `python main.py job-manage table soft-delete --table jobs_final --record-id <UUID>`                                                      |
 | `DELETE /db/jobs-final/{id}`           | `python main.py job-manage table delete --table jobs_final --filter-column id --filter-value <UUID> --treat-404-as-success`              |
+| `GET /db/automation-sessions`          | `python main.py job-manage automation-session list --filter session_status=RUNNING --limit 10`                                           |
+| `GET /db/automation-sessions/{id}`     | `python main.py job-manage automation-session get --id <UUID>`                                                                           |
+| `POST /db/automation-sessions`         | `python main.py job-manage automation-session create --payload '{"job_id":"<JOB_UUID>","automation_type":"JOB_APPLY"}'`                  |
+| `PATCH /db/automation-sessions/{id}`   | `python main.py job-manage automation-session patch --id <UUID> --payload '{"session_status":"WAITING_USER"}'`                           |
+| `DELETE /db/automation-sessions/{id}`  | `python main.py job-manage automation-session delete --id <UUID>`                                                                        |
 | `POST /enricher/run`                   | `python main.py job-manage enricher enrich --limit 20 --dry-run`                                                                         |
 | `POST /enricher/by-ids`                | `python main.py job-manage enricher by-ids --ids <UUID1>,<UUID2> --dry-run`                                                              |
 | `GET /pipeline/metrics`                | `python main.py job-manage pipeline metrics`                                                                                             |
@@ -203,12 +208,17 @@ The JSON file may contain either a top-level array of job objects or an object w
 
 ## Method A: HTTP CRUD And Operations
 
-All supported HTTP routes in this skill operate on the `jobs-final` slug, which maps to the `jobs_final` table.
+This skill uses generic table routes for both `jobs-final` and `automation-sessions` slugs.
 
 ### Endpoint Reference
 
 | Operation           | Method   | Path                              |
 | ------------------- | -------- | --------------------------------- |
+| List sessions       | `GET`    | `/db/automation-sessions`         |
+| Get one session     | `GET`    | `/db/automation-sessions/{id}`    |
+| Upsert sessions     | `POST`   | `/db/automation-sessions`         |
+| Patch one session   | `PATCH`  | `/db/automation-sessions/{id}`    |
+| Hard delete session | `DELETE` | `/db/automation-sessions/{id}`    |
 | List rows           | `GET`    | `/db/jobs-final`                  |
 | Get one row         | `GET`    | `/db/jobs-final/{id}`             |
 | Upsert rows         | `POST`   | `/db/jobs-final`                  |
@@ -341,6 +351,11 @@ Use the unified CLI for local operations.
 | Operation             | Command                                                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | List supported tables | `python main.py job-manage table tables`                                                                                                 |
+| Create session        | `python main.py job-manage automation-session create --payload '{"job_id":"<JOB_UUID>","automation_type":"JOB_APPLY"}'`                  |
+| List sessions         | `python main.py job-manage automation-session list --filter session_status=RUNNING --limit 10`                                           |
+| Get one session       | `python main.py job-manage automation-session get --id <UUID>`                                                                           |
+| Patch one session     | `python main.py job-manage automation-session patch --id <UUID> --payload '{"session_status":"WAITING_USER"}'`                           |
+| Hard delete session   | `python main.py job-manage automation-session delete --id <UUID>`                                                                        |
 | List rows             | `python main.py job-manage table list --table jobs_final --filter job_status=APPLIED --limit 10`                                         |
 | Get one row           | `python main.py job-manage table get --table jobs_final --id <UUID>`                                                                     |
 | Upsert rows           | `python main.py job-manage table upsert --table jobs_final --payload-file payloads/jobs_final_upsert.json`                               |
@@ -356,15 +371,16 @@ Use the unified CLI for local operations.
 
 ## Which Endpoint To Use
 
-| Goal                           | Endpoint                                                | Notes                                                         |
-| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------- |
-| Search external job boards     | `python main.py job-search ...`                         | Search/scrape is provided through the CLI surface             |
-| Save scraped jobs to DB        | `POST /pipeline/submit`                                 | Primary persistence flow; returns `202` and queues enrichment |
-| Ingest + enrich synchronously  | `POST /pipeline/run`                                    | Supported by the API, but submit is the preferred save flow   |
-| Ingest jobs only               | `POST /pipeline/stage/ingest`                           | Writes rows as `SCRAPED`                                      |
-| Enrich existing `SCRAPED` rows | `POST /enricher/run` or `POST /pipeline/stage/enriched` | Use `dry_run` to preview                                      |
-| Enrich specific records        | `POST /enricher/by-ids`                                 | Send a JSON array of `{ "id": "..." }` items                  |
-| Read/update/delete one job     | `/db/jobs-final/{id}`                                   | Direct `jobs_final` CRUD                                      |
+| Goal                           | Endpoint                                                         | Notes                                                         |
+| ------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| Track browser automation state | `/db/automation-sessions` or `job-manage automation-session ...` | Create/update/list automation session state per job           |
+| Search external job boards     | `python main.py job-search ...`                                  | Search/scrape is provided through the CLI surface             |
+| Save scraped jobs to DB        | `POST /pipeline/submit`                                          | Primary persistence flow; returns `202` and queues enrichment |
+| Ingest + enrich synchronously  | `POST /pipeline/run`                                             | Supported by the API, but submit is the preferred save flow   |
+| Ingest jobs only               | `POST /pipeline/stage/ingest`                                    | Writes rows as `SCRAPED`                                      |
+| Enrich existing `SCRAPED` rows | `POST /enricher/run` or `POST /pipeline/stage/enriched`          | Use `dry_run` to preview                                      |
+| Enrich specific records        | `POST /enricher/by-ids`                                          | Send a JSON array of `{ "id": "..." }` items                  |
+| Read/update/delete one job     | `/db/jobs-final/{id}`                                            | Direct `jobs_final` CRUD                                      |
 
 ## Field And Enum Reference
 
@@ -391,12 +407,12 @@ Important constraints:
 
 ## Error Responses
 
-| HTTP | Cause                                    | Example body                                                                        |
-| ---- | ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| 400  | Invalid request body or validation error | `{ "detail": "No valid jobs submitted. row[0]: job_url is required." }`             |
-| 401  | Missing or wrong `X-API-Key`             | `{ "detail": "Invalid API key" }`                                                   |
-| 404  | Unknown table slug                       | `{ "detail": "Unknown table 'foo'. Available: ['jobs-final']" }`                    |
-| 502  | Upstream Supabase or Copilot failure     | `{ "detail": "..." }` or `{ "success": false, "status_code": 502, "error": "..." }` |
+| HTTP | Cause                                    | Example body                                                                                            |
+| ---- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 400  | Invalid request body or validation error | `{ "detail": "No valid jobs submitted. row[0]: job_url is required." }`                                 |
+| 401  | Missing or wrong `X-API-Key`             | `{ "detail": "Invalid API key" }`                                                                       |
+| 404  | Unknown table slug                       | `{ "detail": "Unknown table 'foo'. Available: ['automation-sessions', 'jobs-final', 'shared-links']" }` |
+| 502  | Upstream Supabase or Copilot failure     | `{ "detail": "..." }` or `{ "success": false, "status_code": 502, "error": "..." }`                     |
 
 Always check HTTP status before trusting the response body.
 
@@ -411,7 +427,7 @@ Always check HTTP status before trusting the response body.
 
 - **Connection refused on `:6000`**: start the API server first or continue with CLI fallback commands in this skill
 - **`401 Invalid API key`**: add the `X-API-Key` header when auth is enabled
-- **`404 Unknown table`**: use the hyphenated slug `jobs-final`, not `jobs_final`
+- **`404 Unknown table`**: use hyphenated slugs such as `jobs-final` and `automation-sessions`, not underscored names
 - **`400 Extra inputs are not permitted`**: remove unsupported fields such as `tags`, `remote_type`, or `job_id`
 - **`502` from `/enricher/*`**: check server logs and upstream Copilot/Supabase configuration
 - **Background enrichment from `/pipeline/submit` is in-process**: if the API restarts, rerun enrichment manually

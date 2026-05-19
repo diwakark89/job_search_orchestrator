@@ -21,6 +21,7 @@ from service.tables import soft_delete_jobs_final
 router = APIRouter(prefix="/db", tags=["tables"])
 
 TABLE_CONFIG: dict[str, tuple[str, str]] = {
+    "automation-sessions": ("automation_sessions", "id"),
     "jobs-final": ("jobs_final", "id"),
 }
 

@@ -54,6 +54,12 @@ def _mock_repo(result: OperationResult | None = None) -> SupabaseRepository:
 
 class TestRepositoryUpsertRows:
     VALID_JF_ROW = {"id": "aaaaaaaa-0000-0000-0000-000000000001"}
+    VALID_AUTOMATION_ROW = {
+        "id": "aaaaaaaa-0000-0000-0000-000000000001",
+        "job_id": "bbbbbbbb-0000-0000-0000-000000000001",
+        "automation_type": "JOB_APPLY",
+        "session_status": "RUNNING",
+    }
 
     def test_calls_upsert_with_correct_conflict_key(self):
         client = _mock_client(_ok())
@@ -76,6 +82,25 @@ class TestRepositoryUpsertRows:
         rows = [{"id": "aaaaaaaa-0000-0000-0000-000000000002", "job_status": "GARBAGE"}]
         with pytest.raises(Exception):
             repo.upsert_rows("jobs_final", rows)
+        client.upsert.assert_not_called()
+
+    def test_automation_sessions_upsert_uses_id_conflict_key(self):
+        client = _mock_client(_ok(table="automation_sessions"))
+        repo = SupabaseRepository(client)
+        result = repo.upsert_rows("automation_sessions", [self.VALID_AUTOMATION_ROW])
+        client.upsert.assert_called_once()
+        _, kwargs = client.upsert.call_args
+        assert kwargs["on_conflict"] == "id"
+        assert kwargs["rows"][0]["id"] == self.VALID_AUTOMATION_ROW["id"]
+        assert kwargs["rows"][0]["automation_type"] == "JOB_APPLY"
+        assert result.success is True
+
+    def test_automation_sessions_invalid_status_raises_before_network_call(self):
+        client = _mock_client(_ok(table="automation_sessions"))
+        repo = SupabaseRepository(client)
+        rows = [{"job_id": "bbbbbbbb-0000-0000-0000-000000000001", "automation_type": "JOB_APPLY", "session_status": "PAUSED"}]
+        with pytest.raises(Exception):
+            repo.upsert_rows("automation_sessions", rows)
         client.upsert.assert_not_called()
 
 
